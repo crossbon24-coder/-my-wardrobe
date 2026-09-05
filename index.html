@@ -1,176 +1,26 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#111">
-<title>내 옷장</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="theme-color" content="#f6f5f2"><title>내 옷장</title>
 <style>
-*{box-sizing:border-box}
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;background:#f5f5f3;color:#181818}
-header{padding:50px 20px 20px;background:#fff}
-h1{margin:0;font-size:30px}
-.sub{color:#777;margin-top:6px}
-main{padding:18px 16px 100px;max-width:700px;margin:auto}
-.card{background:#fff;border-radius:20px;padding:18px;margin-bottom:14px;box-shadow:0 2px 12px #0000000a}
-button,.btn{border:0;border-radius:14px;padding:13px 16px;font-size:16px;font-weight:700;background:#171717;color:#fff}
-input,select{width:100%;padding:12px;margin:6px 0;border:1px solid #ddd;border-radius:12px;font-size:16px;background:#fff}
-.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-.item{background:#fff;border-radius:16px;overflow:hidden}
-.item img{width:100%;height:190px;object-fit:cover;background:#eee}
-.info{padding:10px;font-size:14px}
-.empty{text-align:center;color:#888;padding:35px 10px}
-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #ddd;display:flex;padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
-nav button{flex:1;background:#fff;color:#777;padding:10px 3px;font-size:13px}
-nav button.active{color:#111}
-.page{display:none}.page.active{display:block}
-.delete{background:#eee;color:#555;font-size:12px;padding:7px 9px;margin-top:7px}
-.outfit{font-size:17px;line-height:1.8}
-</style>
-</head>
-<body>
-<header>
-<h1>내 옷장</h1>
-<div class="sub" id="count">옷 0벌</div>
-</header>
-
-<main>
-<section id="closet" class="page active">
-<div id="items" class="grid"></div>
-<div id="empty" class="empty">아직 등록된 옷이 없습니다.<br>아래 '옷 등록'에서 시작하세요.</div>
-</section>
-
-<section id="add" class="page">
-<div class="card">
-<h2>옷 등록</h2>
-<input id="photo" type="file" accept="image/*" multiple>
-<select id="category">
-<option value="상의">상의</option>
-<option value="하의">하의</option>
-<option value="아우터">아우터</option>
-<option value="신발">신발</option>
-</select>
-<select id="season">
-<option value="사계절">사계절</option>
-<option value="봄/가을">봄/가을</option>
-<option value="여름">여름</option>
-<option value="겨울">겨울</option>
-</select>
-<input id="memo" placeholder="예: 네이비 옥스포드 셔츠">
-<button onclick="addClothes()">사진 등록</button>
-</div>
-</section>
-
-<section id="recommend" class="page">
-<div class="card">
-<h2>오늘 뭐 입지?</h2>
-<select id="occasion">
-<option>출근</option>
-<option>주말</option>
-<option>데이트</option>
-<option>격식</option>
-</select>
-<button onclick="recommend()">내 옷으로 추천</button>
-<div id="result" class="outfit" style="margin-top:18px"></div>
-</div>
-</section>
-</main>
-
-<nav>
-<button class="active" onclick="show('closet',this)">옷장</button>
-<button onclick="show('add',this)">옷 등록</button>
-<button onclick="show('recommend',this)">코디 추천</button>
-</nav>
-
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;background:#f6f5f2;color:#171717}header{padding:calc(24px + env(safe-area-inset-top)) 18px 16px;background:#fff;position:sticky;top:0;z-index:3;border-bottom:1px solid #eee}h1{margin:0;font-size:28px}.sub{color:#777;margin-top:5px;font-size:14px}main{padding:16px 14px 105px;max-width:760px;margin:auto}.card{background:#fff;border-radius:20px;padding:17px;margin-bottom:14px;border:1px solid #eee}.row{display:flex;gap:8px}.row>*{flex:1}button,.button{border:0;border-radius:13px;padding:12px 14px;font-size:15px;font-weight:700;background:#171717;color:#fff}button.secondary{background:#eee;color:#333}input,select{width:100%;padding:12px;margin:5px 0;border:1px solid #ddd;border-radius:12px;font-size:16px;background:#fff}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}.item{background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e8e8e8}.item img{width:100%;height:205px;object-fit:cover;background:#eee}.info{padding:10px;font-size:13px;line-height:1.5}.title{font-weight:750;font-size:15px}.muted{color:#888}.chips{display:flex;gap:6px;overflow:auto;padding:0 0 12px}.chip{white-space:nowrap;background:#fff;color:#555;border:1px solid #ddd;padding:8px 11px;font-size:13px}.chip.on{background:#171717;color:#fff}.empty{text-align:center;color:#888;padding:55px 10px}.page{display:none}.page.active{display:block}nav{position:fixed;bottom:0;left:0;right:0;background:#ffffffee;backdrop-filter:blur(15px);border-top:1px solid #ddd;display:flex;padding:7px 7px calc(7px + env(safe-area-inset-bottom));z-index:5}nav button{flex:1;background:transparent;color:#888;padding:10px 2px;font-size:12px}nav button.active{color:#111}.preview{width:100%;max-height:300px;object-fit:contain;border-radius:14px;background:#eee;margin:8px 0}.outfit-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:12px}.outfit-piece{border:1px solid #eee;border-radius:14px;overflow:hidden;background:#fafafa}.outfit-piece img{width:100%;height:150px;object-fit:cover}.outfit-piece div{padding:8px;font-size:13px}.danger{background:#f1f1f1;color:#777;padding:7px 9px;font-size:12px;margin-top:7px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}.stat{background:#fff;border:1px solid #eee;border-radius:15px;padding:12px;text-align:center}.stat b{font-size:20px;display:block}.stat span{font-size:11px;color:#888}.notice{font-size:13px;color:#777;line-height:1.5}.hidden{display:none}
+</style></head>
+<body><header><h1>내 옷장</h1><div class="sub" id="summary">옷장을 불러오는 중...</div></header><main>
+<section id="closet" class="page active"><div class="stats"><div class="stat"><b id="total">0</b><span>전체</span></div><div class="stat"><b id="worn">0</b><span>착용 기록</span></div><div class="stat"><b id="saved">0</b><span>저장 코디</span></div></div><div class="chips" id="filters"></div><div id="items" class="grid"></div><div id="empty" class="empty">아직 등록된 옷이 없습니다.<br>‘옷 등록’에서 사진을 추가하세요.</div></section>
+<section id="add" class="page"><div class="card"><h2>옷 등록</h2><p class="notice">사진을 여러 장 선택할 수 있습니다. 사진은 이 아이폰의 브라우저 저장공간(IndexedDB)에 보관되며 GitHub에는 업로드되지 않습니다.</p><input id="photo" type="file" accept="image/*" multiple><select id="category"><option>상의</option><option>하의</option><option>아우터</option><option>신발</option><option>가방</option><option>액세서리</option></select><select id="type"><option value="">세부 종류 선택(선택)</option></select><div class="row"><select id="color"><option>검정</option><option>흰색</option><option>네이비</option><option>회색</option><option>베이지</option><option>브라운</option><option>블루</option><option>그린</option><option>기타</option></select><select id="season"><option>사계절</option><option>봄/가을</option><option>여름</option><option>겨울</option></select></div><select id="formality"><option value="2">스마트캐주얼</option><option value="1">캐주얼</option><option value="3">비즈니스</option><option value="4">포멀</option></select><input id="memo" placeholder="메모 (예: 네이비 옥스포드 셔츠)"><button id="addBtn" onclick="addClothes()">선택한 사진 등록</button></div><div class="card"><b>등록 팁</b><p class="notice">처음에는 상의·하의·신발 위주로 10~20벌만 넣어보세요. 여러 사진을 한 번에 선택하면 현재 입력한 태그가 모두 동일하게 적용됩니다.</p></div></section>
+<section id="recommend" class="page"><div class="card"><h2>오늘 뭐 입지?</h2><div class="row"><select id="occasion"><option>출근</option><option>주말</option><option>데이트</option><option>격식</option></select><select id="weather"><option>선선함</option><option>더움</option><option>추움</option></select></div><button onclick="recommend()">내 옷으로 추천</button><div id="result"></div></div><div class="card"><h3>저장한 코디</h3><div id="savedOutfits" class="notice">아직 없습니다.</div></div></section>
+</main><nav><button class="active" onclick="showPage('closet',this)">옷장</button><button onclick="showPage('add',this)">옷 등록</button><button onclick="showPage('recommend',this)">코디 추천</button></nav>
 <script>
-let clothes=JSON.parse(localStorage.getItem('clothes')||'[]');
-
-function save(){
- localStorage.setItem('clothes',JSON.stringify(clothes));
- render();
-}
-
-function show(id,b){
- document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
- document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
- document.getElementById(id).classList.add('active');
- b.classList.add('active');
-}
-
-function addClothes(){
- const files=[...document.getElementById('photo').files];
- if(!files.length){alert('사진을 선택해주세요.');return}
- const cat=document.getElementById('category').value;
- const season=document.getElementById('season').value;
- const memo=document.getElementById('memo').value;
- let done=0;
-
- files.forEach(file=>{
-  const reader=new FileReader();
-  reader.onload=e=>{
-   clothes.push({
-    id:Date.now()+Math.random(),
-    image:e.target.result,
-    category:cat,
-    season,
-    memo
-   });
-   done++;
-   if(done===files.length){
-    save();
-    alert(files.length+'벌 등록 완료');
-    document.getElementById('photo').value='';
-   }
-  };
-  reader.readAsDataURL(file);
- });
-}
-
-function render(){
- const box=document.getElementById('items');
- box.innerHTML='';
- document.getElementById('count').textContent='옷 '+clothes.length+'벌';
- document.getElementById('empty').style.display=clothes.length?'none':'block';
-
- clothes.forEach(c=>{
-  const d=document.createElement('div');
-  d.className='item';
-  d.innerHTML=`<img src="${c.image}">
-   <div class="info"><b>${c.memo||c.category}</b><br>
-   ${c.category} · ${c.season}<br>
-   <button class="delete" onclick="removeItem('${c.id}')">삭제</button></div>`;
-  box.appendChild(d);
- });
-}
-
-function removeItem(id){
- if(!confirm('삭제할까요?'))return;
- clothes=clothes.filter(c=>String(c.id)!==String(id));
- save();
-}
-
-function pick(cat){
- const a=clothes.filter(x=>x.category===cat);
- return a.length?a[Math.floor(Math.random()*a.length)]:null;
-}
-
-function recommend(){
- const top=pick('상의'), bottom=pick('하의'), shoes=pick('신발'), outer=pick('아우터');
- if(!top||!bottom){
-  document.getElementById('result').innerHTML='상의와 하의를 먼저 등록해주세요.';
-  return;
- }
- const name=x=>x?(x.memo||x.category):'없음';
- document.getElementById('result').innerHTML=
-  `<b>${document.getElementById('occasion').value} 코디</b><br>
-   상의: ${name(top)}<br>
-   하의: ${name(bottom)}<br>
-   신발: ${name(shoes)}<br>
-   아우터: ${name(outer)}`;
-}
-
-render();
-</script>
-</body>
-</html>
+const DB='wardrobeDB', VER=1;let db, clothes=[], outfits=[], filter='전체', currentOutfit=[];const cats=['전체','상의','하의','아우터','신발','가방','액세서리'];const types={상의:['티셔츠','셔츠','니트','맨투맨','후드','폴로'],하의:['슬랙스','데님','치노','쇼츠'],아우터:['재킷','블레이저','코트','블루종','패딩','가디건'],신발:['스니커즈','로퍼','구두','부츠','샌들'],가방:['백팩','토트','크로스백','브리프케이스'],액세서리:['벨트','모자','기타']};
+function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB,VER);r.onupgradeneeded=e=>{const d=e.target.result;if(!d.objectStoreNames.contains('clothes'))d.createObjectStore('clothes',{keyPath:'id'});if(!d.objectStoreNames.contains('outfits'))d.createObjectStore('outfits',{keyPath:'id'})};r.onsuccess=e=>{db=e.target.result;res()};r.onerror=()=>rej(r.error)})}function all(store){return new Promise((res,rej)=>{const r=db.transaction(store).objectStore(store).getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}function put(store,obj){return new Promise((res,rej)=>{const r=db.transaction(store,'readwrite').objectStore(store).put(obj);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}function del(store,id){return new Promise((res,rej)=>{const r=db.transaction(store,'readwrite').objectStore(store).delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error)})}
+async function refresh(){clothes=await all('clothes');outfits=await all('outfits');render()}function showPage(id,b){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));document.getElementById(id).classList.add('active');b.classList.add('active');if(id==='recommend')renderSaved()}
+function setupTypes(){const c=document.getElementById('category'),t=document.getElementById('type');t.innerHTML='<option value="">세부 종류 선택(선택)</option>'+types[c.value].map(x=>`<option>${x}</option>`).join('')}document.getElementById('category').onchange=setupTypes;
+function fileToBlob(file){return new Promise((res,rej)=>{const img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{let w=img.width,h=img.height,max=1200;if(Math.max(w,h)>max){const s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s)}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);c.toBlob(b=>{URL.revokeObjectURL(url);res(b)},'image/jpeg',.82)};img.onerror=rej;img.src=url})}
+async function addClothes(){const fs=[...document.getElementById('photo').files];if(!fs.length)return alert('사진을 선택해주세요.');const btn=document.getElementById('addBtn');btn.disabled=true;btn.textContent='등록 중...';for(let i=0;i<fs.length;i++){const image=await fileToBlob(fs[i]);await put('clothes',{id:crypto.randomUUID(),image,category:category.value,type:type.value,color:color.value,season:season.value,formality:+formality.value,memo:memo.value.trim(),createdAt:Date.now(),wearCount:0,lastWorn:null})}document.getElementById('photo').value='';btn.disabled=false;btn.textContent='선택한 사진 등록';await refresh();alert(fs.length+'벌 등록 완료')}
+function imgURL(blob){return URL.createObjectURL(blob)}function render(){document.getElementById('total').textContent=clothes.length;document.getElementById('worn').textContent=clothes.reduce((a,c)=>a+(c.wearCount||0),0);document.getElementById('saved').textContent=outfits.length;document.getElementById('summary').textContent=`옷 ${clothes.length}벌 · 저장 코디 ${outfits.length}개`;filters.innerHTML=cats.map(c=>`<button class="chip ${filter===c?'on':''}" onclick="setFilter('${c}')">${c}</button>`).join('');const arr=filter==='전체'?clothes:clothes.filter(c=>c.category===filter);items.innerHTML='';empty.style.display=arr.length?'none':'block';arr.sort((a,b)=>b.createdAt-a.createdAt).forEach(c=>{const d=document.createElement('div');d.className='item';d.innerHTML=`<img src="${imgURL(c.image)}"><div class="info"><div class="title">${c.memo||c.type||c.category}</div><span class="muted">${c.category}${c.type?' · '+c.type:''} · ${c.color}</span><br><span class="muted">착용 ${c.wearCount||0}회${c.lastWorn?' · '+new Date(c.lastWorn).toLocaleDateString('ko-KR'):''}</span><br><button class="danger" onclick="wear('${c.id}')">오늘 입음</button> <button class="danger" onclick="removeItem('${c.id}')">삭제</button></div>`;items.appendChild(d)})}function setFilter(c){filter=c;render()}
+async function wear(id){const c=clothes.find(x=>x.id===id);c.wearCount=(c.wearCount||0)+1;c.lastWorn=Date.now();await put('clothes',c);await refresh()}async function removeItem(id){if(!confirm('이 옷을 삭제할까요?'))return;await del('clothes',id);await refresh()}
+function candidates(cat,occ,w){let a=clothes.filter(c=>c.category===cat);if(w==='더움')a=a.filter(c=>c.season!=='겨울');if(w==='추움')a=a.filter(c=>c.season!=='여름');const target=occ==='격식'?4:occ==='출근'?3:occ==='데이트'?2:1;a.sort((x,y)=>Math.abs((x.formality||2)-target)-Math.abs((y.formality||2)-target)||(x.wearCount||0)-(y.wearCount||0));return a.slice(0,Math.max(1,Math.ceil(a.length/2)))}function pick(a){return a.length?a[Math.floor(Math.random()*a.length)]:null}
+function recommend(){const occ=occasion.value,w=weather.value,top=pick(candidates('상의',occ,w)),bottom=pick(candidates('하의',occ,w)),shoes=pick(candidates('신발',occ,w)),outer=w==='더움'?null:pick(candidates('아우터',occ,w));if(!top||!bottom)return result.innerHTML='<p class="notice">상의와 하의를 먼저 등록해주세요.</p>';currentOutfit=[top,bottom,shoes,outer].filter(Boolean);result.innerHTML=`<h3>${occ} 코디</h3><div class="outfit-grid">${currentOutfit.map(c=>`<div class="outfit-piece"><img src="${imgURL(c.image)}"><div><b>${c.memo||c.type||c.category}</b><br>${c.color} · ${c.category}</div></div>`).join('')}</div><div class="row" style="margin-top:10px"><button onclick="saveOutfit()">코디 저장</button><button class="secondary" onclick="recommend()">다시 추천</button></div>`}
+async function saveOutfit(){if(!currentOutfit.length)return;await put('outfits',{id:crypto.randomUUID(),itemIds:currentOutfit.map(x=>x.id),createdAt:Date.now(),occasion:occasion.value});await refresh();renderSaved();alert('코디를 저장했습니다.')}function renderSaved(){if(!outfits.length){savedOutfits.innerHTML='아직 저장한 코디가 없습니다.';return}savedOutfits.innerHTML=outfits.sort((a,b)=>b.createdAt-a.createdAt).slice(0,10).map(o=>`<div style="padding:10px 0;border-bottom:1px solid #eee"><b>${o.occasion}</b> · ${new Date(o.createdAt).toLocaleDateString('ko-KR')} · ${o.itemIds.length}개 아이템 <button class="danger" onclick="removeOutfit('${o.id}')">삭제</button></div>`).join('')}async function removeOutfit(id){await del('outfits',id);await refresh();renderSaved()}
+(async()=>{try{await openDB();setupTypes();await refresh()}catch(e){console.error(e);document.getElementById('summary').textContent='저장소 초기화 오류';alert('브라우저 저장소를 열 수 없습니다.') }})();
+</script></body></html>
