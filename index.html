@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#111">
+<title>내 옷장</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;background:#f5f5f3;color:#181818}
+header{padding:50px 20px 20px;background:#fff}
+h1{margin:0;font-size:30px}
+.sub{color:#777;margin-top:6px}
+main{padding:18px 16px 100px;max-width:700px;margin:auto}
+.card{background:#fff;border-radius:20px;padding:18px;margin-bottom:14px;box-shadow:0 2px 12px #0000000a}
+button,.btn{border:0;border-radius:14px;padding:13px 16px;font-size:16px;font-weight:700;background:#171717;color:#fff}
+input,select{width:100%;padding:12px;margin:6px 0;border:1px solid #ddd;border-radius:12px;font-size:16px;background:#fff}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.item{background:#fff;border-radius:16px;overflow:hidden}
+.item img{width:100%;height:190px;object-fit:cover;background:#eee}
+.info{padding:10px;font-size:14px}
+.empty{text-align:center;color:#888;padding:35px 10px}
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #ddd;display:flex;padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
+nav button{flex:1;background:#fff;color:#777;padding:10px 3px;font-size:13px}
+nav button.active{color:#111}
+.page{display:none}.page.active{display:block}
+.delete{background:#eee;color:#555;font-size:12px;padding:7px 9px;margin-top:7px}
+.outfit{font-size:17px;line-height:1.8}
+</style>
+</head>
+<body>
+<header>
+<h1>내 옷장</h1>
+<div class="sub" id="count">옷 0벌</div>
+</header>
+
+<main>
+<section id="closet" class="page active">
+<div id="items" class="grid"></div>
+<div id="empty" class="empty">아직 등록된 옷이 없습니다.<br>아래 '옷 등록'에서 시작하세요.</div>
+</section>
+
+<section id="add" class="page">
+<div class="card">
+<h2>옷 등록</h2>
+<input id="photo" type="file" accept="image/*" multiple>
+<select id="category">
+<option value="상의">상의</option>
+<option value="하의">하의</option>
+<option value="아우터">아우터</option>
+<option value="신발">신발</option>
+</select>
+<select id="season">
+<option value="사계절">사계절</option>
+<option value="봄/가을">봄/가을</option>
+<option value="여름">여름</option>
+<option value="겨울">겨울</option>
+</select>
+<input id="memo" placeholder="예: 네이비 옥스포드 셔츠">
+<button onclick="addClothes()">사진 등록</button>
+</div>
+</section>
+
+<section id="recommend" class="page">
+<div class="card">
+<h2>오늘 뭐 입지?</h2>
+<select id="occasion">
+<option>출근</option>
+<option>주말</option>
+<option>데이트</option>
+<option>격식</option>
+</select>
+<button onclick="recommend()">내 옷으로 추천</button>
+<div id="result" class="outfit" style="margin-top:18px"></div>
+</div>
+</section>
+</main>
+
+<nav>
+<button class="active" onclick="show('closet',this)">옷장</button>
+<button onclick="show('add',this)">옷 등록</button>
+<button onclick="show('recommend',this)">코디 추천</button>
+</nav>
+
+<script>
+let clothes=JSON.parse(localStorage.getItem('clothes')||'[]');
+
+function save(){
+ localStorage.setItem('clothes',JSON.stringify(clothes));
+ render();
+}
+
+function show(id,b){
+ document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+ document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+ document.getElementById(id).classList.add('active');
+ b.classList.add('active');
+}
+
+function addClothes(){
+ const files=[...document.getElementById('photo').files];
+ if(!files.length){alert('사진을 선택해주세요.');return}
+ const cat=document.getElementById('category').value;
+ const season=document.getElementById('season').value;
+ const memo=document.getElementById('memo').value;
+ let done=0;
+
+ files.forEach(file=>{
+  const reader=new FileReader();
+  reader.onload=e=>{
+   clothes.push({
+    id:Date.now()+Math.random(),
+    image:e.target.result,
+    category:cat,
+    season,
+    memo
+   });
+   done++;
+   if(done===files.length){
+    save();
+    alert(files.length+'벌 등록 완료');
+    document.getElementById('photo').value='';
+   }
+  };
+  reader.readAsDataURL(file);
+ });
+}
+
+function render(){
+ const box=document.getElementById('items');
+ box.innerHTML='';
+ document.getElementById('count').textContent='옷 '+clothes.length+'벌';
+ document.getElementById('empty').style.display=clothes.length?'none':'block';
+
+ clothes.forEach(c=>{
+  const d=document.createElement('div');
+  d.className='item';
+  d.innerHTML=`<img src="${c.image}">
+   <div class="info"><b>${c.memo||c.category}</b><br>
+   ${c.category} · ${c.season}<br>
+   <button class="delete" onclick="removeItem('${c.id}')">삭제</button></div>`;
+  box.appendChild(d);
+ });
+}
+
+function removeItem(id){
+ if(!confirm('삭제할까요?'))return;
+ clothes=clothes.filter(c=>String(c.id)!==String(id));
+ save();
+}
+
+function pick(cat){
+ const a=clothes.filter(x=>x.category===cat);
+ return a.length?a[Math.floor(Math.random()*a.length)]:null;
+}
+
+function recommend(){
+ const top=pick('상의'), bottom=pick('하의'), shoes=pick('신발'), outer=pick('아우터');
+ if(!top||!bottom){
+  document.getElementById('result').innerHTML='상의와 하의를 먼저 등록해주세요.';
+  return;
+ }
+ const name=x=>x?(x.memo||x.category):'없음';
+ document.getElementById('result').innerHTML=
+  `<b>${document.getElementById('occasion').value} 코디</b><br>
+   상의: ${name(top)}<br>
+   하의: ${name(bottom)}<br>
+   신발: ${name(shoes)}<br>
+   아우터: ${name(outer)}`;
+}
+
+render();
+</script>
+</body>
+</html>
