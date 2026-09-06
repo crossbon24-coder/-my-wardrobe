@@ -1,10 +1,10 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#f6f5f2"><meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate"><title>내 옷장</title><style>*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;background:#f6f5f2;color:#171717}header{padding:calc(24px + env(safe-area-inset-top)) 18px 16px;background:#fff;border-bottom:1px solid #eee}h1{margin:0;font-size:28px}.sub,.muted,.small{color:#888}.sub{margin-top:5px;font-size:14px}main{padding:16px 14px 110px;max-width:760px;margin:auto}.card{background:#fff;border:1px solid #eee;border-radius:20px;padding:17px;margin-bottom:14px}.row{display:flex;gap:8px}.row>*{flex:1}button:disabled{opacity:.45;cursor:wait}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #166534;outline-offset:2px}details{margin:6px 0}summary{cursor:pointer}.q select,.q input{min-height:38px}button{border:0;border-radius:13px;padding:12px;font-size:15px;font-weight:700;background:#171717;color:#fff}.secondary,.ghost{background:#eee;color:#444}.ghost{padding:8px;font-size:12px}input,select{width:100%;padding:12px;margin:5px 0;border:1px solid #ddd;border-radius:12px;font-size:16px;background:#fff}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:11px}.item{background:#fff;border:1px solid #e8e8e8;border-radius:16px;overflow:hidden}.item img{width:100%;height:205px;object-fit:cover;background:#eee}.info{padding:10px;font-size:13px;line-height:1.5}.title{font-weight:750;font-size:15px}.actions{display:flex;gap:7px;margin-top:8px}.actions>*{flex:1}.chips{display:flex;gap:6px;overflow:auto;padding-bottom:12px}.chip{white-space:nowrap;background:#fff;color:#555;border:1px solid #ddd;padding:8px 11px;font-size:13px}.chip.on{background:#171717;color:#fff}.page{display:none}.page.active{display:block}.empty{text-align:center;color:#888;padding:55px 10px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}.stat{background:#fff;border:1px solid #eee;border-radius:15px;padding:12px;text-align:center}.stat b{font-size:20px;display:block}.stat span{font-size:11px;color:#888}nav{position:fixed;bottom:0;left:0;right:0;background:#ffffffee;border-top:1px solid #ddd;display:flex;padding:7px 7px calc(7px + env(safe-area-inset-bottom));z-index:5}nav button{flex:1;background:transparent;color:#888;font-size:12px}nav button.active{color:#111}.modal{position:fixed;inset:0;background:#0008;display:none;align-items:flex-end;z-index:20}.modal.open{display:flex}.sheet{background:#fff;width:100%;max-height:90vh;overflow:auto;border-radius:22px 22px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom))}.sheet img{width:100%;max-height:280px;object-fit:contain;background:#eee;border-radius:14px}.box{border:1px dashed #ccc;border-radius:16px;padding:14px;margin-top:12px}.small{font-size:12px;line-height:1.5}.version{text-align:center;font-size:11px;color:#aaa;margin-top:10px}.queue{display:grid;gap:10px;margin:12px 0}.q{display:grid;grid-template-columns:82px 1fr;gap:10px;background:#f7f7f7;border-radius:15px;padding:9px}.q img{width:82px;height:110px;object-fit:cover;border-radius:10px;background:#ddd}.q select,.q input{font-size:13px;padding:8px;margin:2px 0}.badge{font-size:12px;background:#eee;border-radius:999px;padding:5px 9px}.quick{display:flex;gap:5px;overflow:auto;margin:4px 0}.quick button{padding:7px 9px;font-size:11px;white-space:nowrap;background:#e9e9e9;color:#555}.quick button.on{background:#171717;color:#fff}.autoline{font-size:11px;color:#666;margin:4px 0;line-height:1.5}.dot{width:12px;height:12px;border-radius:50%;border:1px solid #bbb;display:inline-block;vertical-align:-1px}.warn{color:#b45309}.good{color:#166534}.rec-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.recgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}.recitem{background:#f7f7f7;border-radius:14px;overflow:hidden}.recitem img{width:100%;height:170px;object-fit:cover}.recitem div{padding:8px;font-size:12px}.reason{background:#f4f4f4;border-radius:13px;padding:11px;margin:10px 0;font-size:13px}.updatebar{position:fixed;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top));z-index:50;background:#171717;color:#fff;border-radius:14px;padding:10px 12px;display:none;align-items:center;gap:8px}.updatebar.show{display:flex}.updatebar span{flex:1;font-size:13px}.updatebar button{background:#fff;color:#171717;padding:8px 10px;font-size:12px}</style></head>
 <body><div id="updateBar" class="updatebar"><span id="updateText"></span><button onclick="applyUpdate()">업데이트</button><button onclick="updateBar.classList.remove('show')">닫기</button></div><header><h1>내 옷장</h1><div class="sub" id="summary">불러오는 중...</div></header>
 <main><section id="closet" class="page active"><div class="stats"><div class="stat"><b id="total">0</b><span>전체</span></div><div class="stat"><b id="worn">0</b><span>착용 기록</span></div><div class="stat"><b id="saved">0</b><span>저장 코디</span></div></div><div class="chips" id="filters"></div><div id="items" class="grid"></div><div id="empty" class="empty">아직 등록된 옷이 없습니다.</div></section>
-<section id="add" class="page"><div class="card"><h2>옷 등록 <span class="badge">기기 내 AI 분류</span></h2><p class="small">사진은 이 기기에서 분석하며 외부로 전송하지 않습니다. 무료 모델 다운로드에는 인터넷이 필요할 수 있습니다. 확실하지 않은 분류와 색상은 직접 확인해주세요.</p><input aria-label="등록할 옷 사진" id="photo" type="file" accept="image/*" multiple><div id="modelStatus" class="small"></div><div id="queue" class="queue"></div><button id="diagnosticBtn" class="secondary" hidden onclick="exportDiagnostics()">테스트 결과 내려받기 (사진 제외)</button><p id="diagnosticHelp" class="small" hidden>분석 후 정답으로 수정하고 내려받으세요. 저장 전 테스트 기록이며 사진·메모는 포함하지 않습니다.</p><button id="batchBtn" style="display:none" onclick="saveBatch()">모두 저장</button><div class="box"><b>옷장 백업 · 복원</b><p class="small">사진과 옷 정보를 JSON 파일로 보관합니다. 복원하면 현재 옷장과 저장 코디가 백업 내용으로 교체됩니다.</p><div class="row"><button class="secondary" onclick="exportBackup()">백업 만들기</button><button class="secondary" onclick="restorePicker.click()">백업 복원</button></div><input id="restorePicker" type="file" accept="application/json,.json" hidden onchange="restoreBackup(this.files[0])"></div><div class="box"><b>앱 업데이트</b><p class="small">현재 버전 <b>v3.7</b></p><div class="row"><button class="secondary" onclick="checkUpdate(true)">최신 버전 확인</button><button class="secondary" onclick="forceReload()">강제 새로고침</button></div></div><div class="version">Wardrobe v3.7</div></div></section>
+<section id="add" class="page"><div class="card"><h2>옷 등록 <span class="badge">기기 내 AI 분류</span></h2><p class="small">사진은 이 기기에서 분석하며 외부로 전송하지 않습니다. 무료 모델 다운로드에는 인터넷이 필요할 수 있습니다. 확실하지 않은 분류와 색상은 직접 확인해주세요.</p><input aria-label="등록할 옷 사진" id="photo" type="file" accept="image/*" multiple><div id="modelStatus" class="small"></div><div id="queue" class="queue"></div><button id="diagnosticBtn" class="secondary" hidden onclick="exportDiagnostics()">테스트 결과 내려받기 (사진 제외)</button><p id="diagnosticHelp" class="small" hidden>분석 후 정답으로 수정하고 내려받으세요. 저장 전 테스트 기록이며 사진·메모는 포함하지 않습니다.</p><button id="batchBtn" style="display:none" onclick="saveBatch()">모두 저장</button><div class="box"><b>옷장 백업 · 복원</b><p class="small">사진과 옷 정보를 JSON 파일로 보관합니다. 복원하면 현재 옷장과 저장 코디가 백업 내용으로 교체됩니다.</p><div class="row"><button class="secondary" onclick="exportBackup()">백업 만들기</button><button class="secondary" onclick="restorePicker.click()">백업 복원</button></div><input id="restorePicker" type="file" accept="application/json,.json" hidden onchange="restoreBackup(this.files[0])"></div><div class="box"><b>앱 업데이트</b><p class="small">현재 버전 <b>v3.8</b></p><div class="row"><button class="secondary" onclick="checkUpdate(true)">최신 버전 확인</button><button class="secondary" onclick="forceReload()">강제 새로고침</button></div></div><div class="version">Wardrobe v3.8</div></div></section>
 <section id="recommend" class="page"><div class="card"><h2>코디 추천</h2><div class="rec-controls"><select id="occasion" aria-label="외출 목적"><option value="1">주말 / 편한 외출</option><option value="2" selected>데이트 / 스마트캐주얼</option><option value="3">출근 / 비즈니스</option><option value="4">격식 있는 자리</option></select><select id="weather" aria-label="날씨"><option value="normal" selected>보통 날씨</option><option value="hot">더운 날</option><option value="cold">추운 날</option></select></div><button onclick="recommend()">내 옷으로 추천</button><div id="result"></div></div></section>
 </main><nav><button class="active" onclick="showPage('closet',this)">옷장</button><button onclick="showPage('add',this)">옷 등록</button><button onclick="showPage('recommend',this)">코디 추천</button></nav><div id="editModal" class="modal" onclick="if(event.target===this)closeEdit()"><div class="sheet"><h2>옷 정보 수정</h2><img id="editImg"><select id="editCategory"></select><select id="editType"></select><div class="row"><select id="editColor"></select><select id="editSeason"></select></div><select id="editFormality"></select><input id="editMemo" placeholder="메모"><div class="actions"><button onclick="saveEdit()">저장</button><button class="secondary" onclick="closeEdit()">취소</button></div></div></div><script>
-const APP_VERSION='3.7',DB='wardrobeDB',VER=1,C=['상의','하의','아우터','신발','가방','액세서리'],COL=['검정','흰색','아이보리/크림','네이비','회색','베이지','브라운','카키/올리브','블루','그린','와인/버건디','기타'],SEA=['사계절','봄/가을','여름','겨울'],T={상의:['티셔츠','셔츠','니트','맨투맨','후드','폴로','기타'],하의:['슬랙스','데님','치노','카고','쇼츠','기타'],아우터:['재킷','블레이저','코트','블루종','패딩','가디건','기타'],신발:['스니커즈','로퍼','구두','부츠','샌들','기타'],가방:['백팩','토트','크로스백','브리프케이스','기타'],액세서리:['벨트','모자','기타']},FOR=[['1','캐주얼'],['2','스마트캐주얼'],['3','비즈니스'],['4','포멀']];let db,clothes=[],outfits=[],filter='전체',editingId=null,batch=[],latestVersion=APP_VERSION,visionModel=null,modelPromise=null;let processing=false, mutationBusy=false, lastDiagnostics=[], currentRecommendation=[];
+const APP_VERSION='3.8',DB='wardrobeDB',VER=1,C=['상의','하의','아우터','신발','가방','액세서리'],COL=['검정','흰색','아이보리/크림','네이비','회색','베이지','브라운','카키/올리브','블루','그린','와인/버건디','기타'],SEA=['사계절','봄/가을','여름','겨울'],T={상의:['티셔츠','셔츠','니트','맨투맨','후드','폴로','기타'],하의:['슬랙스','데님','치노','카고','쇼츠','기타'],아우터:['재킷','블레이저','코트','블루종','패딩','가디건','기타'],신발:['스니커즈','로퍼','구두','부츠','샌들','기타'],가방:['백팩','토트','크로스백','브리프케이스','기타'],액세서리:['벨트','모자','기타']},FOR=[['1','캐주얼'],['2','스마트캐주얼'],['3','비즈니스'],['4','포멀']];let db,clothes=[],outfits=[],filter='전체',editingId=null,batch=[],latestVersion=APP_VERSION,visionModel=null,modelPromise=null;let processing=false, mutationBusy=false, lastDiagnostics=[], currentRecommendation=[];
 const imageURLs=new Map(), scriptLoads=new Map();
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -93,10 +93,13 @@ function analyzeColorPixels(d){
   const sorted=Object.entries(votes).sort((a,b)=>b[1]-a[1]),top=sorted[0]||['기타',0];
   const share=total?top[1]/total:0,margin=total?(top[1]-(sorted[1]?.[1]||0))/total:0;
   const uncertainOlive=top[0]==='회색'&&oliveAmbiguity/Math.max(total,1)>.25;
-  const reliable=count>=120&&share>=.55&&margin>=.18&&top[0]!=='기타'&&!uncertainOlive;
   const rgb=top[1]?sums[top[0]].map(v=>Math.round(v/top[1])):bg;
+  // Reflections lift black leather into dark grey; don't guess material color from brightness alone.
+  const darkNeutral=top[0]==='회색'&&rgbToHsl(...rgb)[2]<32;
+  const mixedNeutrals=top[0]==='회색'&&(votes['검정']||0)/Math.max(total,1)>.25;
+  const reliable=count>=120&&share>=.55&&margin>=.18&&top[0]!=='기타'&&!uncertainOlive&&!darkNeutral&&!mixedNeutrals;
   return {name:top[0],rgb,reliable,share,margin,foregroundPixels:count,background:bg,
-    reason:count<120?'옷과 배경을 구분하기 어렵습니다.':uncertainOlive?'회색·카키/올리브 경계를 확인해주세요.':!reliable?'주색을 직접 확인해주세요.':'',
+    reason:count<120?'옷과 배경을 구분하기 어렵습니다.':uncertainOlive?'회색·카키/올리브 경계를 확인해주세요.':darkNeutral||mixedNeutrals?'검정·회색 경계 또는 배색을 확인해주세요.':!reliable?'주색을 직접 확인해주세요.':'',
     candidates:sorted.map(([name,v])=>({name,share:total?v/total:0}))};
 }
 async function estimateColor(b){return analyzeColorPixels(await pixels(b))}
@@ -122,11 +125,13 @@ async function loadVisionModel(){
       $('modelStatus').textContent='무료 AI 모델 준비 중… 직접 입력도 가능합니다.';
       if(!window.tf)await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js');
       if(!window.mobilenet)await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js');
-      await tf.ready();
+      // Use the included CPU backend for predictable iPhone behavior. No paid or new model service.
+      const backendReady=tf.setBackend('cpu').then(ok=>{if(!ok)throw new Error('CPU 준비 실패');return tf.ready()});let readyTimer;
+      try{await Promise.race([backendReady,new Promise((_,reject)=>{readyTimer=setTimeout(()=>reject(new Error('추론 엔진 준비 시간 초과')),15000)})])}finally{clearTimeout(readyTimer)}
       const pending=mobilenet.load({version:2,alpha:.5});let timedOut=false,timer;
       try{visionModel=await Promise.race([pending,new Promise((_,reject)=>{timer=setTimeout(()=>{timedOut=true;reject(new Error('모델 준비 시간 초과'))},45000)})])}
       finally{clearTimeout(timer);if(timedOut)pending.then(m=>{if(m&&m!==visionModel)m.dispose()},()=>{})}
-      $('modelStatus').textContent='AI 모델 준비 완료';return visionModel;
+      $('modelStatus').textContent='AI 모델 준비 완료 · 기기에서 차례로 분석합니다.';return visionModel;
     }catch(e){$('modelStatus').textContent='모델을 불러오지 못했습니다. 직접 선택하거나 다시 분석해주세요.';return null}
   })();
   try{return await modelPromise}finally{modelPromise=null}
@@ -169,18 +174,69 @@ function mapPredictions(preds){
     raw:mapped.filter(x=>x.category===candidate).map(x=>x.label).join(' / '),predictions:preds,mapped,
     reason:!category?'후보 근거가 부족하거나 서로 비슷합니다.':!type?'세부종류는 직접 확인해주세요.':''};
 }
+async function sha256(bytes){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(n=>n.toString(16).padStart(2,'0')).join('')}
+async function prepareVisionInput(b){
+  // Draw while the blob URL is still alive. Pass numeric RGB, not a detached Image, to TFJS.
+  const source=await new Promise((resolve,reject)=>{
+    const im=new Image(),u=URL.createObjectURL(b);let timer;
+    const cleanup=()=>{clearTimeout(timer);im.onload=im.onerror=null;URL.revokeObjectURL(u)};
+    im.onload=()=>{try{
+      const width=im.naturalWidth,height=im.naturalHeight;if(!width||!height)throw new Error('사진 크기 없음');
+      const c=document.createElement('canvas');c.width=c.height=224;
+      const ctx=c.getContext('2d',{willReadFrequently:true});ctx.fillStyle='#fff';ctx.fillRect(0,0,224,224);ctx.drawImage(im,0,0,224,224);
+      resolve({data:ctx.getImageData(0,0,224,224).data,sourceWidth:width,sourceHeight:height});
+    }catch(e){reject(e)}finally{cleanup()}};
+    im.onerror=()=>{cleanup();reject(new Error('사진 픽셀을 읽을 수 없습니다.'))};
+    timer=setTimeout(()=>{cleanup();im.src='';reject(new Error('사진 읽기 시간 초과'))},30000);im.src=u;
+  });
+  const rgb=new Int32Array(224*224*3);let sum=0,sum2=0,min=255,max=0;
+  for(let i=0,j=0;i<source.data.length;i+=4)for(let k=0;k<3;k++){
+    const v=source.data[i+k];rgb[j++]=v;sum+=v;sum2+=v*v;min=Math.min(min,v);max=Math.max(max,v);
+  }
+  const mean=sum/rgb.length,stdDev=Math.sqrt(Math.max(0,sum2/rgb.length-mean*mean));
+  const input={mode:'rgb-tensor',width:224,height:224,sourceWidth:source.sourceWidth,sourceHeight:source.sourceHeight,
+    sha256:await sha256(new Uint8Array(rgb)),mean,stdDev,min,max};
+  return {rgb,input};
+}
 async function classifyGarment(b){
   const model=await loadVisionModel();
   if(!model)return {...mapPredictions([]),reason:'모델 사용 불가'};
-  let timer;
-  try{const im=await blobImage(b),preds=await Promise.race([model.classify(im,5),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('분류 시간 초과')),30000)})]);return mapPredictions(preds)}
-  catch(e){return {...mapPredictions([]),reason:'분류 실패. 다시 분석하거나 직접 선택해주세요.'}}finally{clearTimeout(timer)}
+  let timer,tensor,pending,input;const started=performance.now();
+  try{
+    const prepared=await prepareVisionInput(b);input=prepared.input;
+    if(input.stdDev<1)throw new Error('모델 입력이 거의 단색입니다.');
+    tensor=tf.tensor3d(prepared.rgb,[224,224,3],'int32');
+    await new Promise(resolve=>setTimeout(resolve,0));
+    pending=model.classify(tensor,5);
+    const preds=await Promise.race([pending,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('분류 시간 초과')),30000)})]);
+    return {...mapPredictions(preds),input,backend:tf.getBackend(),elapsedMs:Math.round(performance.now()-started)};
+  }catch(e){return {...mapPredictions([]),input,backend:window.tf?.getBackend?.()||'unknown',reason:'사진 분석을 완료하지 못했습니다. 다시 분석하거나 직접 선택해주세요.',error:e.message}}
+  finally{clearTimeout(timer);if(tensor){if(pending)Promise.resolve(pending).then(()=>tensor.dispose(),()=>tensor.dispose());else tensor.dispose()}}
 }
 function applyCategoryResult(x,ai){
   x.ai=ai;
   if(!x.manual.category)x.category=ai.category;
   if(!x.manual.type&&!x.manual.category)x.type=ai.type;
   x.aiStatus=ai.category?`추천: ${ai.category}${ai.type?' · '+ai.type:' · 세부종류 확인 필요'}`:'분류 확인 필요';
+  guardBatchPredictions();
+}
+function guardBatchPredictions(){
+  const groups=new Map();
+  for(const x of batch){
+    if(!x.ai?.input?.sha256||!x.ai.predictions?.length)continue;
+    const signature=JSON.stringify(x.ai.predictions.map(p=>[p.className,p.probability]));
+    if(!groups.has(signature))groups.set(signature,[]);groups.get(signature).push(x);
+  }
+  const blocked=new Set();
+  for(const xs of groups.values())if(new Set(xs.map(x=>x.ai.input.sha256)).size>1)for(const x of xs)blocked.add(x);
+  for(const x of batch){if(!x.ai)continue;
+    if(blocked.has(x))x.ai.runtimeWarning='서로 다른 사진에서 같은 분석값이 반복됩니다. 직접 확인하거나 이 사진을 다시 분석해주세요.';
+    // Once suspect, this result stays blocked until this photo gets a new inference.
+    if(!x.ai.runtimeWarning)continue;
+    if(!x.manual.category)x.category='';
+    if(!x.manual.category&&!x.manual.type)x.type='';
+    x.aiStatus='분석 이상 · 분류 확인 필요';
+  }
 }
 function applyColorResult(x,col){x.colorAnalysis=col;x.autoColor=col.name;x.autoRgb=col.rgb;if(!x.manual.color)x.color=col.reliable?col.name:''}
 function updateBatchButtons(){
@@ -199,7 +255,7 @@ $('photo').onchange=async e=>{
     for(const f of files){
       try{
         const image=await f2b(f),col=await estimateColor(image);
-        const x={image,category:'',type:'',color:'',manual:{},requestId:0,aiStatus:'분류 중…',season:'사계절',formality:2,memo:''};
+        const x={image,sourceId:await sha256(await f.arrayBuffer()),category:'',type:'',color:'',manual:{},requestId:0,aiStatus:'분류 중…',season:'사계절',formality:2,memo:''};
         applyColorResult(x,col);batch.push(x);renderQueue();
       }catch{failures++}
     }
@@ -227,7 +283,7 @@ function renderQueue(){
     <div class="row"><select aria-label="사진 ${i+1} 색상" onchange="qset(${i},'color',this.value)"><option value="" ${!x.color?'selected':''}>색상 확인 필요</option>${opts(COL,x.color)}</select><select aria-label="사진 ${i+1} 계절" onchange="qset(${i},'season',this.value)">${opts(SEA,x.season)}</select></div>
     <select aria-label="사진 ${i+1} 격식도" onchange="qset(${i},'formality',+this.value)">${opts(FOR,x.formality)}</select>
     <input aria-label="사진 ${i+1} 메모" placeholder="메모" value="${esc(x.memo)}" oninput="qset(${i},'memo',this.value)">
-    ${x.ai?`<details><summary class="small">분석 근거</summary><div class="small">점수는 정답률이 아닙니다. 대분류 점수 ${Math.round(x.ai.categoryConfidence*100)}% / 세부종류 점수 ${Math.round(x.ai.typeConfidence*100)}%<br>${esc(x.ai.reason)}<br>${x.ai.predictions.map(p=>`${esc(p.className)}: ${Math.round(p.probability*100)}%`).join('<br>')}</div></details>`:''}
+    ${x.ai?`<details><summary class="small">분석 근거</summary><div class="small">${esc(x.ai.runtimeWarning||'')}<br>점수는 정답률이 아닙니다. 대분류 점수 ${Math.round(x.ai.categoryConfidence*100)}% / 세부종류 점수 ${Math.round(x.ai.typeConfidence*100)}%<br>${esc(x.ai.reason)}<br>${x.ai.predictions.map(p=>`${esc(p.className)}: ${Math.round(p.probability*100)}%`).join('<br>')}</div></details>`:''}
   </div></div>`).join('');
   if(focused){const next=[...$('queue').querySelectorAll('[aria-label]')].find(e=>e.getAttribute('aria-label')===focused);if(next){next.focus({preventScroll:true});if(selection)next.setSelectionRange(...selection)}}
 }
@@ -237,20 +293,20 @@ async function reanalyze(i){
   try{const col=await estimateColor(x.image),ai=await classifyGarment(x.image);if(!batch.includes(x)||request!==x.requestId)return;applyColorResult(x,col);applyCategoryResult(x,ai)}
   catch(e){reportError(e,'재분석하지 못했습니다.')}finally{x.analyzing=false;renderQueue()}
 }
-function removePending(i){if(processing||mutationBusy||batch[i]?.analyzing)return;batch.splice(i,1);pruneURLs();renderQueue()}
+function removePending(i){if(processing||mutationBusy||batch[i]?.analyzing)return;batch.splice(i,1);guardBatchPredictions();pruneURLs();renderQueue()}
 function qset(i,k,v){
   const x=batch[i];if(!x||mutationBusy)return;x[k]=v;
   if(['category','type','color'].includes(k))x.manual[k]=true;
   if(k==='category'){x.type='';x.manual.type=true;renderQueue()}
 }
-function diagnosticRows(items){return items.map((x,i)=>({caseIndex:i+1,selection:{category:x.category,type:x.type,color:x.color},userConfirmed:{...x.manual},categoryAnalysis:x.ai||null,colorAnalysis:x.colorAnalysis||null}))}
+function diagnosticRows(items){return items.map((x,i)=>({caseIndex:i+1,sourceId:x.sourceId||null,inputId:x.ai?.input?.sha256||null,selection:{category:x.category,type:x.type,color:x.color},userConfirmed:{...x.manual},categoryAnalysis:x.ai||null,colorAnalysis:x.colorAnalysis||null}))}
 function downloadJSON(o,name){
   const b=new Blob([JSON.stringify(o,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');
   a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);
 }
 function exportDiagnostics(){
   const cases=batch.length?diagnosticRows(batch):lastDiagnostics;if(!cases.length)return;
-  downloadJSON({app:'my-wardrobe-diagnostics',version:APP_VERSION,createdAt:new Date().toISOString(),model:{name:'MobileNet',version:2,alpha:.5},policy:AI_POLICY,cases},`wardrobe-tests-${new Date().toISOString().slice(0,10)}.json`);
+  downloadJSON({app:'my-wardrobe-diagnostics',version:APP_VERSION,createdAt:new Date().toISOString(),model:{name:'MobileNet',version:2,alpha:.5,backend:'cpu',inputMode:'rgb-tensor'},policy:AI_POLICY,cases},`wardrobe-tests-${new Date().toISOString().slice(0,10)}.json`);
 }
 async function saveBatch(){
   if(processing||mutationBusy||!batch.length||batch.some(x=>x.analyzing))return;

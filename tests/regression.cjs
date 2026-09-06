@@ -29,6 +29,7 @@ async function check(name, fn) { await fn(); console.log('PASS', name); passed++
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(() => document.getElementById('summary').textContent.includes('옷 0벌'));
   await page.evaluate(() => {
+    window.makeTfStub=()=>({ready:async()=>{},setBackend:async name=>{window.selectedBackend=name;return true},getBackend:()=>window.selectedBackend||'cpu',tensor3d:(data,shape,dtype)=>({data,shape,dtype,dispose(){window.disposedInputs=(window.disposedInputs||0)+1}})});
     window.alerts = []; window.alert = text => alerts.push(text); window.confirm = () => true;
     window.fixture = async (id='legacy', color='#65704c') => {
       const c=document.createElement('canvas');c.width=c.height=96;
@@ -138,7 +139,7 @@ async function check(name, fn) { await fn(); console.log('PASS', name); passed++
   });
   await check('Model failure permits a successful retry on the same page', async () => {
     const r=await page.evaluate(async()=>{
-      let calls=0;window.tf={ready:async()=>{}};window.mobilenet={load:async()=>{calls++;if(calls===1)throw new Error('offline');return {classify:async()=>[{className:'trench coat',probability:.8}],dispose(){}}}};
+      let calls=0;window.tf=makeTfStub();window.mobilenet={load:async()=>{calls++;if(calls===1)throw new Error('offline');return {classify:async()=>[{className:'trench coat',probability:.8}],dispose(){}}}};
       visionModel=null;modelPromise=null;const first=await loadVisionModel(),second=await loadVisionModel();return [first===null,!!second,calls];
     });assert.deepEqual(r,[true,true,2]);
   });
@@ -173,6 +174,38 @@ async function check(name, fn) { await fn(); console.log('PASS', name); passed++
       const before=(await all('clothes')).length;await Promise.all([saveBatch(),saveBatch()]);return (await all('clothes')).length-before;
     });assert.equal(r,1);
   });
+  await check('RGB input is nonempty, image-specific and uses 0..255 numeric tensors', async () => {
+    const r=await page.evaluate(async()=>{
+      const a=await fixture('a','#215c99'),b=await fixture('b','#b32828');
+      const aa=await prepareVisionInput(a.image),bb=await prepareVisionInput(b.image);let received;
+      window.tf=makeTfStub();visionModel={classify:async tensor=>{received={shape:tensor.shape,dtype:tensor.dtype,min:Math.min(...tensor.data.slice(0,300)),max:Math.max(...tensor.data.slice(0,300))};return [{className:'jean, blue jean, denim',probability:.9}]}};
+      const before=window.disposedInputs||0,result=await classifyGarment(a.image);await Promise.resolve();
+      return [aa.input.sha256!==bb.input.sha256,aa.input.stdDev>1,bb.input.stdDev>1,aa.rgb.length,received,result.category,result.backend,(window.disposedInputs||0)>before];
+    });assert.deepEqual(r,[true,true,true,224*224*3,{shape:[224,224,3],dtype:'int32',min:255,max:255},'하의','cpu',true]);
+  });
+  await check('Repeated predictions across different inputs block auto-values but preserve manual choices', async () => {
+    const r=await page.evaluate(()=>{
+      const preds=[{className:'cowboy boot',probability:.9}],ai=id=>({...mapPredictions(preds),input:{sha256:id}});
+      batch=[{manual:{},category:'',type:''},{manual:{category:true,type:true},category:'아우터',type:'패딩'}];
+      applyCategoryResult(batch[0],ai('a'));applyCategoryResult(batch[1],ai('b'));
+      const result=[batch[0].category,batch[0].type,!!batch[0].ai.runtimeWarning,batch[1].category,batch[1].type];
+      applyCategoryResult(batch[1],{...mapPredictions([{className:'trench coat',probability:.7}]),input:{sha256:'b'}});
+      result.push(batch[0].category,!batch[0].ai.runtimeWarning);batch=[];return result;
+    });assert.deepEqual(r,['','',true,'아우터','패딩','',false]);
+  });
+  await check('Repeated copies of the same image are not treated as an inference failure', async () => {
+    const r=await page.evaluate(()=>{
+      const ai={...mapPredictions([{className:'cowboy boot',probability:.9}]),input:{sha256:'same'}};
+      batch=[{manual:{}},{manual:{}}];applyCategoryResult(batch[0],{...ai});applyCategoryResult(batch[1],{...ai});const result=batch.map(x=>[x.category,!!x.ai.runtimeWarning]);batch=[];return result;
+    });assert.deepEqual(r,[['신발',false],['신발',false]]);
+  });
+  await check('Black/grey leather boundary and mixed neutrals ask for confirmation', async () => {
+    const r=await page.evaluate(()=>[analyzeColorPixels(gridPixels([70,70,72])),analyzeColorPixels(gridPixels([120,120,120]))]);
+    assert.equal(r[0].reliable,false);assert.match(r[0].reason,/검정/);assert.equal(r[1].reliable,true);
+  });
+  await check('Failed inference still disposes the numeric input and permits manual entry', async () => {
+    const r=await page.evaluate(async()=>{window.tf=makeTfStub();visionModel={classify:async()=>{throw new Error('test failure')}};const before=window.disposedInputs||0;const result=await classifyGarment((await fixture()).image);await Promise.resolve();return [result.category,!!result.input.sha256,(window.disposedInputs||0)>before]});assert.deepEqual(r,['',true,true]);
+  });
   await check('Unavailable CDN leaves upload usable for manual registration', async () => {
     const r=await page.evaluate(async()=>{
       visionModel=null;modelPromise=null;scriptLoads.clear();delete window.tf;delete window.mobilenet;
@@ -180,6 +213,14 @@ async function check(name, fn) { await fn(); console.log('PASS', name); passed++
       await $('photo').onchange({target:{files:[new File([image],'offline.png',{type:'image/png'})],value:''}});
       return [batch.length,batch[0].category,processing,$('photo').disabled,$('modelStatus').textContent];
     });assert.deepEqual(r.slice(0,4),[1,'',false,false]);assert.match(r[4],/직접 선택/);
+  });
+  await check('Actual v3.7 repeated-output fixture is identified as abnormal across all six inputs', async () => {
+    const fixture=JSON.parse(readFileSync(join(__dirname,'fixtures/v37-repeated-output.json'),'utf8'));
+    const r=await page.evaluate(f=>{
+      batch=f.cases.map((x,i)=>({manual:{},category:'',type:''}));
+      for(let i=0;i<batch.length;i++)applyCategoryResult(batch[i],{...mapPredictions(f.commonPredictions),input:{sha256:'distinct-input-'+i}});
+      const result=batch.map(x=>[x.category,!!x.ai.runtimeWarning]);batch=[];return result;
+    },fixture);assert.equal(r.length,6);for(const row of r)assert.deepEqual(row,['',true]);
   });
   await check('No unexpected runtime errors', async () => assert.deepEqual(errors,[]));
   console.log(`\n${passed} checks passed. Real garment accuracy and iPhone Safari remain unverified.`);
