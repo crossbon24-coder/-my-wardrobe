@@ -1,4 +1,4 @@
-/* Isolated Chromium integration checks. Synthetic images/model outputs only.
+/* Isolated Chromium checks. Synthetic images and controlled/recorded model outputs.
  * Run: node tests/regression.cjs (requires Playwright + its Chromium binary).
  * Never connects to GitHub Pages or the user's IndexedDB.
  */
@@ -222,6 +222,28 @@ async function check(name, fn) { await fn(); console.log('PASS', name); passed++
       const result=batch.map(x=>[x.category,!!x.ai.runtimeWarning]);batch=[];return result;
     },fixture);assert.equal(r.length,6);for(const row of r)assert.deepEqual(row,['',true]);
   });
+  // Optional private diagnostic replay: never check user diagnostics into this repository.
+  if(process.env.WARDROBE_DIAGNOSTICS)await check('Local diagnostic replay preserves recorded suggestions and abstentions', async () => {
+    const diagnostic=JSON.parse(readFileSync(process.env.WARDROBE_DIAGNOSTICS,'utf8'));
+    assert.equal(diagnostic.app,'my-wardrobe-diagnostics');
+    assert.ok(Array.isArray(diagnostic.cases)&&diagnostic.cases.length>0);
+    const cases=diagnostic.cases.filter(c=>c.categoryAnalysis?.predictions?.length&&!c.categoryAnalysis.runtimeWarning);
+    assert.ok(cases.length>0,'No usable recorded predictions');
+    const actual=await page.evaluate(cases=>{
+      batch=cases.map(()=>({manual:{},category:'',type:'',color:''}));
+      for(let i=0;i<batch.length;i++){
+        const c=cases[i];
+        applyCategoryResult(batch[i],{...mapPredictions(c.categoryAnalysis.predictions),input:{sha256:c.inputId}});
+        applyColorResult(batch[i],c.colorAnalysis);
+      }
+      const result=batch.map(x=>({category:x.category,type:x.type,color:x.color,warning:!!x.ai.runtimeWarning}));
+      batch=[];return result;
+    },cases);
+    for(let i=0;i<actual.length;i++){
+      const c=cases[i];
+      assert.deepEqual(actual[i],{category:c.categoryAnalysis.category,type:c.categoryAnalysis.type,color:c.colorAnalysis.reliable?c.colorAnalysis.name:'',warning:false},`case ${c.caseIndex}`);
+    }
+  });
   await check('No unexpected runtime errors', async () => assert.deepEqual(errors,[]));
-  console.log(`\n${passed} checks passed. Real garment accuracy and iPhone Safari remain unverified.`);
+  console.log(`\n${passed} checks passed. This suite does not run pretrained inference or verify iPhone Safari.`);
 })().catch(e=>{console.error(e);process.exitCode=1}).finally(async()=>{if(browser)await browser.close();server.close()});
