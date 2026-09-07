@@ -3,7 +3,36 @@
 이 문서는 이 저장소를 이어서 개발하는 작업자의 기준 문서다. 매 작업을 시작할 때 최신 `PROJECT.md`, 실제 코드, `version.json` 및 저장소 지침을 먼저 읽는다. 현재 사용자의 명시적인 지시가 우선하며, 이 문서를 근거로 요청 범위 밖의 구현을 시작하지 않는다.
 
 
-## 현재 기준 — v3.9 (상품 가져오기·세탁 정보)
+## 현재 기준 — v4.0 (코디 만들기·저장 코디·착용 캘린더) — Claude Code, 2026-09-07
+
+사용자가 이 저장소에서 Claude Code와 GPT가 함께 개발하기로 결정했다(분담·규칙·대화는 COLLAB.md). v4.0은 Claude가 맡은 코디 영역이며, 아래가 v3.9 현황보다 우선한다. 등록·분류·상품 가져오기·세탁 정보·추천(recommend)은 v3.9 그대로다.
+
+### 구현
+
+- 새 파일 outfits.js 하나에 기능을 모두 넣고, index.html에는 nav 버튼 "코디", 빈 `<section id="outfit" class="page">`, `<script src="./outfits.js?v=4.0">` 세 연결부와 버전 표기(4.0)만 바꿨다. 기존 함수는 호출만 한다(clothes, outfits, $, esc, arg, url, transaction, refresh, render, showPage, reportError).
+- window.render를 감싸서 기존 render() 뒤에 코디 화면과 옷장 탭 보조(검색·4열)를 다시 그린다. 기존 refresh() → render() 흐름은 그대로다.
+- 코디 탭: 플랫레이 칸(아우터·상의 / 하의 / 신발·가방·액세서리). 칸을 누르면 해당 카테고리 옷 사진 격자 시트(전체 보기 토글)에서 고른다. 이름을 붙여 outfits store에 저장한다.
+- 저장 코디: 목록(최근 저장·많이 입은 순·최근 입은 순), 불러오기, 오늘 입음, 삭제. 캘린더(월 이동, 입은 날 칸에 대표 사진, 날짜 탭 → 그날 코디·기록 삭제·이 날 기록 추가).
+- 옷장 탭: 필터 칩 위에 검색창(카드 글자 기준: 메모·종류·색·계절)과 2열/4열 전환(localStorage 'wardrobe.dense'). 기존 render()의 카드 HTML은 바꾸지 않고 결과만 숨기거나 CSS 클래스를 붙인다.
+
+### 데이터 계약(COLLAB.md 3절, GPT 동의)
+
+- outfits 레코드: {id(randomUUID), name, slots:{outer,top,bottom,shoes,acc → clothes.id 또는 null}, createdAt(ms), worn:['YYYY-MM-DD' 현지 날짜, 중복 없이 정렬]}.
+- "오늘 입음"(또는 지난 날짜 기록 추가): worn에 날짜를 넣고 구성 옷들의 wearCount +1, lastWorn = max(기존, 그 날짜). 같은 날짜가 이미 있으면 아무것도 바꾸지 않는다(idempotent, GPT 요청).
+- 기록 삭제: worn에서 날짜만 지운다. clothes.wearCount는 되돌리지 않는다(출처 정보가 없으므로, GPT 권고).
+- clothes 필드는 바꾸지 않았다. DB명·버전·store·keyPath 유지. 이관 백업의 선택 필드 legacy{seasons,color,cat}·partial은 복원 시 그대로 보존된다.
+
+### 검증(로컬 Chromium 수동, iPhone 미검증)
+
+- 사용자의 Claude 앱 데이터 263벌을 변환한 백업 복원 → 코디 3칸 선택·저장 → 오늘 입음(wearCount 0→1, 재호출 시 변화 없음) → 캘린더 표시 → 기록 삭제(worn 비움, wearCount 1 유지) → 지난 날짜 기록 추가(wearCount 2) → 정렬 → 검색 "가디건" 4벌 → 4열 전환 → 새로 고침 후 유지 → 기존 recommend() 정상. 콘솔 오류 없음. 375px 폭 화면 캡처로 코디 탭·시트·캘린더 배치를 확인했다.
+- tests/regression.cjs는 실행하지 못했다(Playwright 미설치). 그 검사의 로컬 정적 서버 허용 목록(13행)에 '/outfits.js'가 없어 검사 환경에서는 코디 탭이 비어 보인다. 목록 추가와 코디 검사 신설은 GPT에게 요청했다(COLLAB.md).
+- 실제 iPhone Safari·홈 화면 모드에서 코디 탭 레이아웃·시트 스크롤·bfcache 복귀는 미확인이다.
+
+### 남은 일
+
+- 사용자 실기기 확인 후 레이아웃 보정. 옷 삭제 기능이 앱에 없어 코디의 빈 참조는 빈 칸으로만 표시한다. 저장 코디·worn을 recommend()에 약한 신호로 반영하는 것은 GPT 판단(COLLAB.md 5절 답변 (4)).
+
+## 이전 기준 — v3.9 (상품 가져오기·세탁 정보)
 
 사용자가 쇼핑몰 링크 기반 등록과 세탁 라벨 관리의 구현 방법을 요청하여 다음 기능을 추가했다. 아래 현황이 과거 기록보다 우선한다.
 
