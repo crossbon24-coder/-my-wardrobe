@@ -1,0 +1,362 @@
+{
+  "sourceVersion": "3.7",
+  "evidence": "User-supplied diagnostic; six independent photos had byte-identical top-five class/score lists. No user-confirmed labels in source.",
+  "commonPredictions": [
+    {
+      "className": "window screen",
+      "probability": 0.16868115961551666
+    },
+    {
+      "className": "handkerchief, hankie, hanky, hankey",
+      "probability": 0.10674624145030975
+    },
+    {
+      "className": "shower curtain",
+      "probability": 0.07160383462905884
+    },
+    {
+      "className": "bib",
+      "probability": 0.029770798981189728
+    },
+    {
+      "className": "tile roof",
+      "probability": 0.027312317863106728
+    }
+  ],
+  "cases": [
+    {
+      "caseIndex": 1,
+      "visualReference": "denim-blue-background",
+      "imageAssociation": "inferred from background and color statistics, not embedded image IDs",
+      "userConfirmed": {},
+      "reportedSelection": {
+        "category": "",
+        "type": "",
+        "color": "블루"
+      },
+      "colorAnalysis": {
+        "name": "블루",
+        "rgb": [
+          77,
+          119,
+          153
+        ],
+        "reliable": true,
+        "share": 0.9548144215793399,
+        "margin": 0.9098665046649757,
+        "foregroundPixels": 2635,
+        "background": [
+          200,
+          213,
+          222
+        ],
+        "reason": "",
+        "candidates": [
+          {
+            "name": "블루",
+            "share": 0.9548144215793399
+          },
+          {
+            "name": "네이비",
+            "share": 0.044947916914364235
+          },
+          {
+            "name": "회색",
+            "share": 0.00023766150629533702
+          }
+        ]
+      }
+    },
+    {
+      "caseIndex": 2,
+      "visualReference": "chelsea-boots",
+      "imageAssociation": "inferred from background and color statistics, not embedded image IDs",
+      "userConfirmed": {},
+      "reportedSelection": {
+        "category": "",
+        "type": "",
+        "color": "회색"
+      },
+      "colorAnalysis": {
+        "name": "회색",
+        "rgb": [
+          67,
+          67,
+          70
+        ],
+        "reliable": true,
+        "share": 0.7579973828384798,
+        "margin": 0.6100200612161101,
+        "foregroundPixels": 1961,
+        "background": [
+          178,
+          178,
+          178
+        ],
+        "reason": "",
+        "candidates": [
+          {
+            "name": "회색",
+            "share": 0.7579973828384798
+          },
+          {
+            "name": "와인/버건디",
+            "share": 0.14797732162236973
+          },
+          {
+            "name": "브라운",
+            "share": 0.05546684948038052
+          },
+          {
+            "name": "검정",
+            "share": 0.025885567755560154
+          },
+          {
+            "name": "네이비",
+            "share": 0.010164034582266659
+          },
+          {
+            "name": "베이지",
+            "share": 0.0015461773120416002
+          },
+          {
+            "name": "카키/올리브",
+            "share": 0.0009626664089037258
+          }
+        ]
+      }
+    },
+    {
+      "caseIndex": 3,
+      "visualReference": "olive-bag",
+      "imageAssociation": "inferred from background and color statistics, not embedded image IDs",
+      "userConfirmed": {},
+      "reportedSelection": {
+        "category": "",
+        "type": "",
+        "color": "카키/올리브"
+      },
+      "colorAnalysis": {
+        "name": "카키/올리브",
+        "rgb": [
+          91,
+          98,
+          81
+        ],
+        "reliable": true,
+        "share": 0.8527792208844096,
+        "margin": 0.7275073822967575,
+        "foregroundPixels": 3962,
+        "background": [
+          197,
+          199,
+          194
+        ],
+        "reason": "",
+        "candidates": [
+          {
+            "name": "카키/올리브",
+            "share": 0.8527792208844096
+          },
+          {
+            "name": "검정",
+            "share": 0.125271838587652
+          },
+          {
+            "name": "회색",
+            "share": 0.021948940527940403
+          }
+        ]
+      }
+    },
+    {
+      "caseIndex": 4,
+      "visualReference": "grey-black-sneakers",
+      "imageAssociation": "inferred from background and color statistics, not embedded image IDs",
+      "userConfirmed": {},
+      "reportedSelection": {
+        "category": "",
+        "type": "",
+        "color": ""
+      },
+      "colorAnalysis": {
+        "name": "회색",
+        "rgb": [
+          86,
+          85,
+          88
+        ],
+        "reliable": false,
+        "share": 0.49927431777869,
+        "margin": 0.11600562510319606,
+        "foregroundPixels": 2718,
+        "background": [
+          178,
+          178,
+          178
+        ],
+        "reason": "주색을 직접 확인해주세요.",
+        "candidates": [
+          {
+            "name": "회색",
+            "share": 0.49927431777869
+          },
+          {
+            "name": "검정",
+            "share": 0.3832686926754939
+          },
+          {
+            "name": "베이지",
+            "share": 0.07348760560545112
+          },
+          {
+            "name": "아이보리/크림",
+            "share": 0.023720212917174816
+          },
+          {
+            "name": "블루",
+            "share": 0.005322959720542704
+          },
+          {
+            "name": "기타",
+            "share": 0.0045210048240808655
+          },
+          {
+            "name": "카키/올리브",
+            "share": 0.003292787722900364
+          },
+          {
+            "name": "와인/버건디",
+            "share": 0.002573932972840042
+          },
+          {
+            "name": "흰색",
+            "share": 0.0017260374320230197
+          },
+          {
+            "name": "네이비",
+            "share": 0.0015947302034150102
+          },
+          {
+            "name": "브라운",
+            "share": 0.0012177181473892844
+          }
+        ]
+      }
+    },
+    {
+      "caseIndex": 5,
+      "visualReference": "olive-puffer",
+      "imageAssociation": "inferred from background and color statistics, not embedded image IDs",
+      "userConfirmed": {},
+      "reportedSelection": {
+        "category": "",
+        "type": "",
+        "color": "카키/올리브"
+      },
+      "colorAnalysis": {
+        "name": "카키/올리브",
+        "rgb": [
+          130,
+          141,
+          100
+        ],
+        "reliable": true,
+        "share": 0.9332329608587193,
+        "margin": 0.8894338914155905,
+        "foregroundPixels": 3139,
+        "background": [
+          218,
+          221,
+          210
+        ],
+        "reason": "",
+        "candidates": [
+          {
+            "name": "카키/올리브",
+            "share": 0.9332329608587193
+          },
+          {
+            "name": "브라운",
+            "share": 0.0437990694431289
+          },
+          {
+            "name": "그린",
+            "share": 0.011504916482043678
+          },
+          {
+            "name": "검정",
+            "share": 0.008817255740634782
+          },
+          {
+            "name": "베이지",
+            "share": 0.0020991988247897296
+          },
+          {
+            "name": "회색",
+            "share": 0.0005465986506839025
+          }
+        ]
+      }
+    },
+    {
+      "caseIndex": 6,
+      "visualReference": "denim-grey-background",
+      "imageAssociation": "inferred from background and color statistics, not embedded image IDs",
+      "userConfirmed": {},
+      "reportedSelection": {
+        "category": "",
+        "type": "",
+        "color": "블루"
+      },
+      "colorAnalysis": {
+        "name": "블루",
+        "rgb": [
+          94,
+          118,
+          136
+        ],
+        "reliable": true,
+        "share": 0.6457110416612876,
+        "margin": 0.3643121286803768,
+        "foregroundPixels": 2235,
+        "background": [
+          216,
+          216,
+          216
+        ],
+        "reason": "",
+        "candidates": [
+          {
+            "name": "블루",
+            "share": 0.6457110416612876
+          },
+          {
+            "name": "네이비",
+            "share": 0.28139891298091074
+          },
+          {
+            "name": "회색",
+            "share": 0.054810030459299296
+          },
+          {
+            "name": "검정",
+            "share": 0.009506890609463973
+          },
+          {
+            "name": "기타",
+            "share": 0.007402919597831445
+          },
+          {
+            "name": "브라운",
+            "share": 0.0007381461589144132
+          },
+          {
+            "name": "아이보리/크림",
+            "share": 0.0004320585322924229
+          }
+        ]
+      }
+    }
+  ]
+}

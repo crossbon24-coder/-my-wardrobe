@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>상품 가져오기 설정 · 내 옷장</title>
+<style>body{margin:0;background:#f6f5f2;color:#171717;font:16px/1.7 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif}main{max-width:700px;margin:auto;padding:28px 18px 70px}h1{font-size:26px}h2{font-size:20px;margin-top:32px}section{background:white;border:1px solid #eee;border-radius:18px;padding:18px;margin:16px 0}a{color:#166534}li{margin:12px 0}button{padding:12px 16px;border:0;border-radius:12px;background:#171717;color:white;font:inherit}textarea{box-sizing:border-box;width:100%;height:200px;margin-top:12px;font:12px/1.5 monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f2f2;padding:12px;border-radius:10px;font-size:13px}.note{font-size:14px;color:#666}code{overflow-wrap:anywhere}</style></head>
+<body><main><a href="./">← 내 옷장</a><h1>쇼핑몰 상품 가져오기</h1><p>한 번 설정하면 <b>Safari 상품 페이지 → 공유 → 단축어 → 옷장에 붙여 넣기</b>로 등록할 수 있습니다. 사진·구매 색상·사이즈는 저장 전에 확인합니다.</p>
+<p class="note">설치용 단축어 파일이 아니라 직접 만드는 안내입니다. 아래 코드는 브라우저 검사로 확인했으며 iPhone 단축어 전체 실행과 쇼핑몰별 지원 여부는 실제 링크로 확인이 필요합니다. iOS 언어·버전에 따라 동작 이름이 조금 다를 수 있습니다.</p>
+<section><h2>1. 단축어 만들기</h2><ol><li>iPhone <b>단축어</b> 앱에서 새 단축어를 만들고 이름을 <b>옷장 상품 가져오기</b>로 정합니다.</li><li>단축어 세부사항에서 <b>공유 시트에서 보기</b>를 켜고 입력 유형은 <b>Safari 웹 페이지</b>로 정합니다.</li><li><b>웹 페이지에서 JavaScript 실행</b> 동작을 추가합니다. 입력은 <b>단축어 입력</b>으로 두고, 기본 코드를 모두 지운 뒤 아래 코드로 교체합니다.</li></ol>
+<button id="copy" onclick="copyCode()">코드 불러오기·복사</button><p id="status" class="note" role="status"></p><textarea id="code" aria-label="단축어에 넣을 코드" readonly hidden></textarea>
+<p class="note">JavaScript 실행 허용을 요청하면 Apple의 안내에 따라 단축어 설정에서 허용합니다. 상품 상세페이지에서만 실행하세요. 코드는 상품 메타데이터만 읽으며 계정 정보·쿠키·장바구니를 수집하지 않습니다.</p></section>
+<section><h2>2. 사진도 함께 가져오기</h2><p>첫 번째 JavaScript 동작은 <code>metadata</code>(상품 정보)와 <code>imageUrl</code>(대표 사진 주소)을 반환합니다. 이후 동작을 다음 순서로 추가합니다.</p>
+<ol><li><b>사전 값 가져오기</b>: 키 <code>metadata</code>, 입력은 첫 번째 <b>JavaScript 결과</b>.</li>
+<li><b>변수 설정</b>: 이름을 <b>상품정보</b>로 정합니다.</li>
+<li><b>사전 값 가져오기</b>: 키 <code>imageUrl</code>, 입력은 다시 첫 번째 <b>JavaScript 결과</b>를 선택합니다. 바로 앞 상품정보 텍스트를 입력으로 쓰지 않습니다.</li>
+<li><b>조건문</b>: 사진 주소에 <b>값이 있는 경우</b>.</li>
+<li>조건문 안에 <b>URL의 콘텐츠 가져오기</b>를 추가합니다. 주소는 <code>imageUrl</code>의 값이고 방식은 <b>GET</b>입니다.</li>
+<li><b>이미지 크기 조절</b>: 너비 1200, 높이 자동.</li>
+<li><b>이미지 변환</b>: <b>JPEG</b>로 변환합니다.</li>
+<li><b>Base64 인코딩</b>: 변환한 이미지를 인코딩합니다. 줄바꿈은 <b>없음</b>으로 설정합니다.</li>
+<li><b>텍스트</b> 동작에 아래 내용을 넣습니다. 대괄호 부분은 직접 타이핑하는 글자가 아니라 해당 <b>변수 칩</b>으로 교체합니다.</li></ol>
+<pre>{
+  "metadata": [상품정보 변수],
+  "imageBase64": "[Base64 인코딩 결과 변수]"
+}</pre>
+<p class="note"><code>metadata</code> 뒤 상품정보 변수에는 따옴표를 붙이지 않습니다. <code>imageBase64</code> 값의 양쪽 따옴표는 유지합니다.</p>
+<ol start="10"><li>조건문의 <b>그렇지 않은 경우</b>에는 <b>텍스트</b> 동작에 <b>상품정보 변수</b>만 넣습니다.</li><li>조건문이 끝난 뒤 <b>클립보드에 복사</b>를 추가하고 입력을 <b>조건문 결과</b>로 지정합니다.</li></ol>
+<p class="note">사진 서버가 다운로드를 거부하면 단축어가 중단될 수 있습니다. 그때는 아래 정보 전용 방식으로 가져온 뒤 옷장에서 사진을 선택하세요. 대표 사진이 구매 옵션과 다른 경우도 있으므로 반드시 미리보기를 확인합니다.</p></section>
+<section><h2>간단한 대안: 정보만 가져오기</h2><p>JavaScript 실행 뒤 <b>사전 값 가져오기(metadata) → 클립보드에 복사</b>만 연결해도 됩니다. 옷장 앱이 사진 주소로 다운로드를 시도하고, 허용되지 않으면 사진 선택을 안내합니다.</p></section>
+<section><h2>3. 실제 등록</h2><ol><li>구매한 상품을 <b>Safari</b>에서 열고 공유 메뉴에서 만든 단축어를 실행합니다. 쇼핑몰 앱의 링크 공유만으로는 Safari 웹 페이지 입력이 전달되지 않을 수 있습니다.</li><li>평소 사용하는 <b>옷장 앱</b>을 직접 엽니다. 홈 화면 앱을 쓰면 그 앱을 여세요.</li><li><b>옷 등록 → 쇼핑몰 상품 가져오기</b>에 붙여 넣고 <b>상품 미리보기</b>를 누릅니다.</li><li>사진·상품 정보·구매 옵션 확인 → <b>등록 목록에 추가</b> → 카테고리·색상 확인 → <b>모두 저장</b>.</li></ol><p>기존 옷장은 유지되고 새 옷만 추가됩니다. 백업 복원 기능을 사용하지 않습니다.</p></section>
+<section><h2>세탁 라벨도 보관하기</h2><p>옷장 카드의 <b>수정 → 세탁 라벨·관리</b>에서 라벨 사진, 제조사 안내, 개인 메모, 마지막 세탁일을 저장할 수 있습니다. 사진을 누르면 크게 볼 수 있습니다.</p><p>iPhone 사진 앱에서 라벨 문장을 길게 눌러 복사하거나 라이브 텍스트 버튼을 사용한 뒤 세탁 안내 칸에 붙여 넣으세요. 앱이 세탁 기호를 자동 판독하거나 소재만으로 세탁법을 확정하지는 않습니다.</p></section>
+<p class="note">공식 안내: <a href="https://support.apple.com/guide/shortcuts/intro-to-the-run-javascript-on-webpage-action-apd218e2187d/ios">Apple Safari JavaScript 단축어</a> · <a href="https://support.apple.com/en-us/120004">Apple 라이브 텍스트</a></p>
+</main><script>async function copyCode(){const status=document.getElementById('status'),code=document.getElementById('code');try{const r=await fetch('./product-shortcut.js?v=3.9');if(!r.ok)throw new Error('코드를 불러오지 못했습니다. 다시 시도해주세요.');code.value=await r.text();code.hidden=false;try{await navigator.clipboard.writeText(code.value);status.textContent='코드를 복사했습니다. 단축어에 붙여 넣으세요.'}catch{code.focus();code.select();status.textContent='아래 코드를 전체 선택해 복사해주세요.'}}catch(e){status.textContent=e.message}}</script></body></html>
