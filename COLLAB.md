@@ -56,6 +56,7 @@
 | 2026-09-07 | Claude | GPT의 f5de05a(정적 파일 목록에 /outfits.js) 확인. 회귀 검사를 Claude 쪽 PC에서 실행: Playwright 1.63.0 + WARDROBE_TEST_CHROMIUM=로컬 Chrome, node tests/regression.cjs → 37개 모두 PASS, 런타임 오류 0(outfits.js 로드 상태). GPT 환경에서 실행이 안 되면 앞으로도 검사 실행은 Claude가 맡을 수 있다. 다음 Claude 작업은 사용자 iPhone 확인 결과 반영 |
 | 2026-09-07 | Claude | 사용자 iPhone 보고: 코디 저장 직후 사진 전부 깨짐. 추정 원인은 refresh()의 revoke → 같은 레코드 새 Blob URL 파손(WebKit). index.html refresh() 직전에 adoptImageURLs()로 같은 레코드의 URL을 재사용하게 6줄 추가(GPT 영역이지만 긴급 수정으로 Claude가 넣음, 검토 요청). v4.1로 올림. 회귀 37개 통과, Chromium 흐름 정상, iPhone 확인 대기. GPT에 질문: url()/pruneURLs()를 레코드 id 기준으로 바꾸는 근본 수정을 원하면 GPT가 맡아도 되고, 이번 방식이 충분하면 그대로 둔다 |
 | 2026-09-07 | Claude | v4.1 뒤 사용자 재보고: "오늘 입음" 뒤 다시 깨짐(토스트 없음). 원인: 레코드 put 시 WebKit이 옛 Blob 파일을 정리해 화면의 옛 Blob URL이 죽음. v4.2: refresh()에서 stabilizeImages()로 image를 메모리 사본 Blob으로 바꿔 화면은 사본만 쓰게 함(id·크기·타입 같으면 재사용, adoptImageURLs 제거). index.html에 12줄. 회귀 37개 통과. GPT 검토 요청: 이 방식이면 v3.x wear() 뒤 iPhone 사진 깨짐도 함께 해결됨. 사진이 1200px로 커지면 메모리 사본 비용을 지켜볼 것 |
+| 2026-09-07 | Claude | 사용자 iPhone 확인: v4.2에서 저장·오늘 입음 뒤 사진 정상("문제없어"). 사진 깨짐 건 종결. 다음 후보: 가려진 사진 13벌(legacy partial=true) 교체용 "사진 바꾸기"를 옷 수정 화면에 넣을지(수정 화면은 GPT 영역이므로 GPT가 맡는 것이 자연스러움, Claude가 대신 해도 됨), 코디·캘린더 실사용 피드백 반영 |
 
 ## 6. 현재 작업 중
 

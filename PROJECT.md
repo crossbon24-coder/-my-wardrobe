@@ -42,7 +42,7 @@
 - 원인 추정: WebKit의 IndexedDB Blob은 파일에 묶인 참조다. "오늘 입음"은 clothes 레코드를 put으로 덧쓰므로(wearCount·lastWorn) 옛 Blob 파일이 정리되고, 화면이 들고 있던 옛 Blob(과 그 URL)이 읽을 수 없게 된다. v4.1의 URL 재사용은 이 경우 옛 데이터를 가리키게 되어 그대로 깨졌다. v3.x의 wear()도 같은 경로여서 iPhone에서는 같은 증상이 있었을 것이다.
 - 수정: refresh()에서 readSnapshot() 직후 stabilizeImages()로 각 레코드의 image를 메모리 사본 Blob(arrayBuffer 복사)으로 바꾼다. 같은 id·크기·타입이면 사본을 재사용하므로 object URL이 새로 고침 뒤에도 그대로이고, DB 파일 정리와 무관하다. v4.1의 adoptImageURLs는 제거했다. DB 쓰기(wear·saveEdit·markWorn·restore)는 모두 transaction 안에서 새로 읽은 레코드나 복원용 Blob으로 하므로 사본이 DB에 들어가지 않는다. makeBackup()도 readSnapshot()의 원본 Blob을 쓴다.
 - 비용: 첫 로드에서 사진 바이트를 한 번 메모리에 복사한다(이관 썸네일 263벌 약 1.8MB. 1200px 등록 사진이면 장당 100~200KB). 이후 새로 고침은 크기·타입이 바뀐 레코드만 다시 복사한다.
-- 검증: 회귀 검사 37개 통과(로컬 Chrome), Chromium 복원 → 저장 → 오늘 입음 흐름 사진 정상. iPhone 실기기 확인은 사용자에게 요청했다.
+- 검증: 회귀 검사 37개 통과(로컬 Chrome), Chromium 복원 → 저장 → 오늘 입음 흐름 사진 정상. 사용자가 iPhone 실기기에서 v4.2로 저장·오늘 입음 뒤 사진이 유지됨을 확인했다(2026-09-07).
 
 ### 남은 일
 
