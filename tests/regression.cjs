@@ -10,9 +10,9 @@ const assert = require('node:assert/strict');
 const root = join(__dirname, '..');
 const server = createServer((req, res) => {
   const path = req.url.split('?')[0];
-  const file = path === '/version.json' ? 'version.json' : path === '/' ? 'index.html' : null;
+  const file = path === '/version.json' ? 'version.json' : path === '/' ? 'index.html' : ['/wardrobe-import.js','/product-shortcut.js'].includes(path) ? path.slice(1) : null;
   if (!file) { res.writeHead(404).end(); return; }
-  res.setHeader('Content-Type', file.endsWith('.json') ? 'application/json' : 'text/html; charset=utf-8');
+  res.setHeader('Content-Type', file.endsWith('.json') ? 'application/json' : file.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8');
   res.end(readFileSync(join(root, file)));
 });
 let browser, passed = 0;
@@ -243,6 +243,68 @@ async function check(name, fn) { await fn(); console.log('PASS', name); passed++
       const c=cases[i];
       assert.deepEqual(actual[i],{category:c.categoryAnalysis.category,type:c.categoryAnalysis.type,color:c.colorAnalysis.reliable?c.colorAnalysis.name:'',warning:false},`case ${c.caseIndex}`);
     }
+  });
+  await check('Safari extractor handles Product graphs, ignores unrelated page text and ambiguous lists', async () => {
+    const p=await context.newPage(),code=readFileSync(join(root,'product-shortcut.js'),'utf8');
+    await p.goto(`http://127.0.0.1:${server.address().port}/`);
+    await p.setContent('<meta property="og:title" content="페이지 제목"><meta property="og:image" content="https://example.test/photo.jpg"><div>Account secret must not be extracted</div>');
+    await p.evaluate(()=>{const s=document.createElement('script');s.type='application/ld+json';s.textContent=JSON.stringify({'@graph':[{'@type':'Product',name:'테스트 패딩',brand:{name:'테스트 브랜드'},material:'나일론',image:'https://example.test/padded.jpg',offers:{price:'100',priceCurrency:'KRW'}}]});document.head.append(s)});
+    const output=await p.evaluate(code=>new Promise(resolve=>{window.completion=resolve;(0,eval)(code)}),code),result=JSON.parse(output.metadata);
+    assert.equal(result.product.name,'테스트 패딩');assert.equal(result.product.material,'나일론');assert.equal(output.imageUrl,'https://example.test/padded.jpg');assert.ok(!output.metadata.includes('secret'));
+    await p.evaluate(()=>{document.querySelector('script[type="application/ld+json"]').textContent=JSON.stringify([{'@type':'Product',name:'A'},{'@type':'Product',name:'B'}])});
+    const ambiguous=await p.evaluate(code=>new Promise(resolve=>{window.completion=resolve;(0,eval)(code)}),code);
+    assert.equal(JSON.parse(ambiguous.metadata).product.name,'페이지 제목');await p.close();
+  });
+  await check('Product import rejects backup files and unsafe URLs without modifying existing clothes', async () => {
+    const r=await page.evaluate(async()=>{
+      const before=(await all('clothes')).length,errors=[];
+      for(const obj of [{app:'my-wardrobe',version:'3.8',clothes:[]},{app:'my-wardrobe-product',version:1,product:{url:'javascript:alert(1)'}},{app:'my-wardrobe-product',version:1,product:{name:'X'},imageData:'data:image/svg+xml;base64,PHN2Zz4='}]){
+        try{parseProductPackage(JSON.stringify(obj))}catch(e){errors.push(e.message)}
+      }return [errors.length,before,(await all('clothes')).length];
+    });assert.equal(r[0],3);assert.equal(r[1],r[2]);
+  });
+  await check('Product title hints abstain when a title mentions conflicting garment kinds', async () => {
+    const r=await page.evaluate(()=>['테스트 다운 패딩','Chelsea boots','패딩 부츠','가방'].map(productTitleSuggestion));
+    assert.deepEqual(r,[{category:'아우터',type:'패딩'},{category:'신발',type:'부츠'},{category:'',type:''},{category:'',type:''}]);
+  });
+  await check('Native image envelope previews safely and adds one garment without replacing the wardrobe', async () => {
+    const r=await page.evaluate(async()=>{
+      batch=[];processing=false;mutationBusy=false;
+      const base=await fixture('kept-product-test');await put('clothes',base);await refresh();
+      const before=(await all('clothes')).length,outfitsBefore=JSON.stringify(await all('outfits'));
+      const imageData=await b64(base.image),metadata={app:'my-wardrobe-product',version:1,product:{name:'<img src=x onerror="window.productInjected=true"> 패딩',brand:'테스트',material:'나일론',url:'https://example.test/product',color:'olive',size:'M'}};
+      $('productPayload').value=JSON.stringify({metadata,imageBase64:imageData.split(',')[1]});await previewProduct();
+      const previewOnly=(await all('clothes')).length===before;
+      await queueProduct();const queued=batch.length;batch[0].color='카키/올리브';await saveBatch();
+      window.importedGarment=(await all('clothes')).find(c=>c.wardrobeDetails?.product?.brand==='테스트');
+      return [previewOnly,queued,(await all('clothes')).length-before,!!(await all('clothes')).find(c=>c.id===base.id),JSON.stringify(await all('outfits'))===outfitsBefore,importedGarment.wardrobeDetails.product.size,!!window.productInjected];
+    });assert.deepEqual(r,[true,1,1,true,true,'M',false]);
+  });
+  await check('Blocked remote photo retains metadata and supports an explicit local image replacement', async () => {
+    const r=await page.evaluate(async()=>{
+      $('productPayload').value=JSON.stringify({app:'my-wardrobe-product',version:1,product:{name:'테스트 상품'},imageUrl:'https://example.test/blocked.jpg'});await previewProduct();
+      const fallback=!productDraft.image&&!$('productReview').hidden&&$('productName').value==='테스트 상품';
+      await chooseProductPhoto((await fixture()).image);const ready=productDraft.image instanceof Blob;
+      productDraft=null;$('productReview').hidden=true;return [fallback,ready];
+    });assert.deepEqual(r,[true,true]);
+  });
+  await check('Care photo and instructions round-trip in backup while legacy fields survive editing', async () => {
+    const r=await page.evaluate(async()=>{
+      const id=importedGarment.id;await put('clothes',{...importedGarment,unknownField:{keep:true}});await refresh();openEdit(id);
+      await chooseCarePhoto((await fixture()).image);$('careInstructions').value='제조사 안내 테스트';$('careNotes').value='내 메모';$('careLastWashed').value='2026-09-07';
+      const label=editDetails.care.labelImage;await saveEdit();const c=(await all('clothes')).find(c=>c.id===id);
+      const backup=await makeBackup(),prepared=await prepareRestore(backup),restored=prepared.clothes.find(c=>c.id===id);
+      return [c.unknownField.keep,c.wardrobeDetails.product.brand,c.wardrobeDetails.care.instructions,restored.wardrobeDetails.care.labelImage===label,restored.wardrobeDetails.care.lastWashed];
+    });assert.deepEqual(r,[true,'테스트','제조사 안내 테스트',true,'2026-09-07']);
+  });
+  await check('Invalid care image aborts restore preparation and cancelling a care edit keeps saved values', async () => {
+    const r=await page.evaluate(async()=>{
+      const before=await makeBackup(),bad=structuredClone(before),target=bad.clothes.find(c=>c.wardrobeDetails?.care?.labelImage);
+      target.wardrobeDetails.care.labelImage='data:image/jpeg;base64,YmFk';let failed=false;
+      try{await prepareRestore(bad)}catch{failed=true}
+      const c=clothes.find(c=>c.id===target.id);openEdit(c.id);$('careInstructions').value='취소할 변경';removeCarePhoto();closeEdit();
+      const after=await makeBackup();return [failed,JSON.stringify(before.clothes)===JSON.stringify(after.clothes),JSON.stringify(before.outfits)===JSON.stringify(after.outfits)];
+    });assert.deepEqual(r,[true,true,true]);
   });
   await check('No unexpected runtime errors', async () => assert.deepEqual(errors,[]));
   console.log(`\n${passed} checks passed. This suite does not run pretrained inference or verify iPhone Safari.`);
