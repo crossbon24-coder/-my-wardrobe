@@ -25,7 +25,7 @@
 ### 검증(로컬 Chromium 수동, iPhone 미검증)
 
 - 사용자의 Claude 앱 데이터 263벌을 변환한 백업 복원 → 코디 3칸 선택·저장 → 오늘 입음(wearCount 0→1, 재호출 시 변화 없음) → 캘린더 표시 → 기록 삭제(worn 비움, wearCount 1 유지) → 지난 날짜 기록 추가(wearCount 2) → 정렬 → 검색 "가디건" 4벌 → 4열 전환 → 새로 고침 후 유지 → 기존 recommend() 정상. 콘솔 오류 없음. 375px 폭 화면 캡처로 코디 탭·시트·캘린더 배치를 확인했다.
-- tests/regression.cjs는 실행하지 못했다(Playwright 미설치). 그 검사의 로컬 정적 서버 허용 목록(13행)에 '/outfits.js'가 없어 검사 환경에서는 코디 탭이 비어 보인다. 목록 추가와 코디 검사 신설은 GPT에게 요청했다(COLLAB.md).
+- tests/regression.cjs: GPT가 정적 파일 목록에 '/outfits.js'를 추가한 뒤(f5de05a) Claude가 로컬 PC에서 실행했다. Playwright 1.63.0 라이브러리 + WARDROBE_TEST_CHROMIUM=로컬 Chrome 실행 파일로 기본 37개 검사 통과("No unexpected runtime errors" 포함, outfits.js가 함께 로드된 상태). 코디 기능 전용 회귀 검사는 아직 없다(GPT 판단).
 - 실제 iPhone Safari·홈 화면 모드에서 코디 탭 레이아웃·시트 스크롤·bfcache 복귀는 미확인이다.
 
 ### 남은 일
