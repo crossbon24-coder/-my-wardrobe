@@ -1,4 +1,4 @@
-/* outfits.js — 코디 만들기·저장 코디·착용 캘린더·옷장 검색/4열 (Claude Code, v4.0)
+/* outfits.js — 코디 만들기·저장 코디·착용 캘린더·옷장 검색/4열 (Claude Code, v4.0~)
    index.html의 전역(clothes, outfits, db, $, esc, arg, url, transaction, refresh, render, showPage)을 호출만 하고 고치지 않는다.
    데이터 계약은 COLLAB.md 3절: outfits {id, name, slots:{outer,top,bottom,shoes,acc}, createdAt(ms), worn:['YYYY-MM-DD']}.
    "오늘 입음"은 같은 날짜가 이미 있으면 아무것도 바꾸지 않는다(idempotent). 기록 삭제는 worn만 지우고 clothes.wearCount는 건드리지 않는다. */
@@ -229,7 +229,7 @@
     injectCSS();ensureDOM();installClosetTools();
     try{dense=localStorage.getItem('wardrobe.dense')==='1'}catch{}
     const base=window.render;
-    window.render=function(){base.apply(this,arguments);try{renderOutfitPage();applyClosetTools()}catch(e){console.error('outfits.js render',e)}};
+    window.render=function(){base.apply(this,arguments);try{renderOutfitPage();applyClosetTools()}catch(e){console.error('outfits.js render',e);say('코디 화면 오류: '+(e&&e.message||e))}};
     if(typeof db!=='undefined'&&db)render();else renderOutfitPage();
   }
   init();
