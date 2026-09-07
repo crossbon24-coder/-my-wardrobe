@@ -28,6 +28,14 @@
 - tests/regression.cjs: GPT가 정적 파일 목록에 '/outfits.js'를 추가한 뒤(f5de05a) Claude가 로컬 PC에서 실행했다. Playwright 1.63.0 라이브러리 + WARDROBE_TEST_CHROMIUM=로컬 Chrome 실행 파일로 기본 37개 검사 통과("No unexpected runtime errors" 포함, outfits.js가 함께 로드된 상태). 코디 기능 전용 회귀 검사는 아직 없다(GPT 판단).
 - 실제 iPhone Safari·홈 화면 모드에서 코디 탭 레이아웃·시트 스크롤·bfcache 복귀는 미확인이다.
 
+### v4.1 — iPhone에서 저장 뒤 사진 전부 깨짐 수정(2026-09-07)
+
+- 사용자 보고: iPhone에서 코디 "저장"을 누르면 저장은 되지만 사진이 전부 깨진다. PC Chrome에서는 재현되지 않고, Windows용 Playwright WebKit은 복원 단계에서 페이지가 죽어 재현 도구로 쓸 수 없었다.
+- 원인 추정(코드 추론): 저장 뒤 refresh()가 readSnapshot()으로 clothes를 다시 읽으면 Blob 객체가 새 것으로 바뀌고 pruneURLs()가 이전 Blob의 object URL을 전부 revoke한 뒤 새 URL을 만든다. WebKit은 같은 IndexedDB 레코드에서 읽은 Blob들이 내부 데이터를 공유해, 이전 URL을 revoke하면 새 Blob의 URL도 깨진다. 복원 때는 revoke 대상이 삭제된 옛 레코드의 URL이어서 정상이었던 점과 일치한다. 같은 이유로 v3.x의 "오늘 입음"(refresh 호출) 뒤에도 iPhone에서는 사진이 깨졌을 것으로 본다.
+- 수정: index.html에 adoptImageURLs(prev,next)를 추가하고 refresh()에서 clothes를 바꾸기 직전에 호출한다. 같은 id 레코드의 image가 크기·타입이 같으면 기존 URL을 새 Blob 키로 옮겨 재사용하고 revoke하지 않는다. 삭제된 레코드·등록 대기 사진의 URL 해제는 그대로다. url()·pruneURLs() 서명은 바꾸지 않았다.
+- 검증: 회귀 검사 37개 통과(로컬 Chrome). Chromium에서 복원 → 저장 → 오늘 입음 뒤 사진 정상. iPhone 실기기 확인은 사용자에게 요청했다. 실기기에서도 깨지면 원인이 다른 것이므로 outfits.js가 화면 그리기 오류를 토스트로 표시하게 해 두었다(이번 버전부터).
+- 이 변경은 index.html의 GPT 영역(refresh)에 6줄을 더한 것이다. 사용자 보고 긴급 수정이어서 Claude가 직접 넣었고 COLLAB.md에 검토를 요청했다.
+
 ### 남은 일
 
 - 사용자 실기기 확인 후 레이아웃 보정. 옷 삭제 기능이 앱에 없어 코디의 빈 참조는 빈 칸으로만 표시한다. 저장 코디·worn을 recommend()에 약한 신호로 반영하는 것은 GPT 판단(COLLAB.md 5절 답변 (4)).
