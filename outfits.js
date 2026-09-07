@@ -174,7 +174,8 @@
 .fl.small{gap:4px;max-width:150px}.fl.small .fl-row{gap:4px}.fl.small .fl-tile{border-radius:8px;font-size:10px}
 .of-item{display:flex;gap:10px;background:#f7f7f7;border-radius:15px;padding:9px;margin-top:8px}
 .of-item.done{opacity:.45}
-.of-thumb{width:150px;flex:none}.of-info{min-width:0;flex:1;display:flex;flex-direction:column}.of-info .actions{margin-top:auto}
+.of-thumb{width:150px;flex:none}.of-info{min-width:0;flex:1;display:flex;flex-direction:column}.of-info .actions{margin-top:auto;flex-wrap:wrap}.of-info .actions button{flex:1 1 auto;white-space:nowrap;padding:8px 6px}
+@media (max-width:430px){.of-thumb{width:118px}.fl.small{max-width:118px}}
 .pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
 .pgrid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:#eee;cursor:pointer;max-height:none}
 .pgrid img.sel{outline:3px solid #166534}
