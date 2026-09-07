@@ -13,10 +13,11 @@ const server=http.createServer((q,r)=>{
  const p=decodeURIComponent(new URL(q.url,'http://local').pathname);let file;
  if(p==='/')file=path.join(root,'index.html');
  else if(p==='/version.json')file=path.join(root,'version.json');
+ else if(p==='/wardrobe-import.js')file=path.join(root,'wardrobe-import.js');
  else if(p==='/tf.js')file=tfjs;
  else if(names.includes(p.slice(1)))file=path.join(photoDir,p.slice(1));
  if(!file){r.writeHead(404).end();return}
- r.setHeader('Content-Type',p==='/tf.js'?'application/javascript':/\.jpe?g$/i.test(p)?'image/jpeg':p.endsWith('.png')?'image/png':p==='/version.json'?'application/json':'text/html; charset=utf-8');r.end(fs.readFileSync(file));
+ r.setHeader('Content-Type',p.endsWith('.js')?'application/javascript':/\.jpe?g$/i.test(p)?'image/jpeg':p.endsWith('.png')?'image/png':p==='/version.json'?'application/json':'text/html; charset=utf-8');r.end(fs.readFileSync(file));
 });
 let browser;
 (async()=>{
