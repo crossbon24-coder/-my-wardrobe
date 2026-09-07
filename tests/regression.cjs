@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 const root = join(__dirname, '..');
 const server = createServer((req, res) => {
   const path = req.url.split('?')[0];
-  const file = path === '/version.json' ? 'version.json' : path === '/' ? 'index.html' : ['/wardrobe-import.js','/product-shortcut.js'].includes(path) ? path.slice(1) : null;
+  const file = path === '/version.json' ? 'version.json' : path === '/' ? 'index.html' : ['/wardrobe-import.js','/product-shortcut.js','/outfits.js'].includes(path) ? path.slice(1) : null;
   if (!file) { res.writeHead(404).end(); return; }
   res.setHeader('Content-Type', file.endsWith('.json') ? 'application/json' : file.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8');
   res.end(readFileSync(join(root, file)));
