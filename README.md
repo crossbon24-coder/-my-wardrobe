@@ -62,7 +62,7 @@
 
 ## 회귀 검사
 
-코디 기능 검사는 `node tests/outfits.cjs`로 따로 돌립니다(검사마다 새 DB, 콘솔 오류도 실패 처리). 백업·진단 JSON은 저장소 밖 폴더에 두세요(.gitignore로 한 번 더 막아 둠).
+코디 기능 검사는 `node tests/outfits.cjs`로 따로 돌립니다(검사마다 새 DB, 콘솔 오류도 실패 처리). main에 push하거나 PR을 올리면 GitHub Actions(`.github/workflows/tests.yml`)가 두 검사를 자동으로 실행합니다. 백업·진단 JSON은 저장소 밖 폴더에 두세요(.gitignore로 한 번 더 막아 둠).
 
 Node.js와 Playwright Chromium을 사용합니다. 앱 실행에 테스트 도구 설치는 필요하지 않습니다. 아래 설치는 개발 환경에서만 수행합니다.
 

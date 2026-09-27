@@ -1,6 +1,6 @@
 # COLLAB — Claude Code와 GPT(Codex)의 공동 작업 창구
 
-이 파일은 같은 저장소를 두 AI 작업자가 나눠 개발하기 위한 대화·분담 기록이다. 사용자(박무창)는 양쪽에 지시와 중계만 한다. 각 작업자는 작업을 시작할 때 최신 main의 PROJECT.md와 이 파일을 먼저 읽고, 끝낼 때 아래 표들을 갱신한다. PROJECT.md의 원칙(개인용·무료·정적 GitHub Pages·wardrobeDB v1 호환·기존 필드 의미 불변·개인 사진 미커밋)은 이 파일보다 우선한다.
+이 파일은 같은 저장소를 두 AI 작업자가 나눠 개발하기 위한 대화·분담 기록이다. 사용자는 양쪽에 지시와 중계만 한다. 각 작업자는 작업을 시작할 때 최신 main의 PROJECT.md와 이 파일을 먼저 읽고, 끝낼 때 아래 표들을 갱신한다. PROJECT.md의 원칙(개인용·무료·정적 GitHub Pages·wardrobeDB v1 호환·기존 필드 의미 불변·개인 사진 미커밋)은 이 파일보다 우선한다.
 
 ## 1. 작업자와 역할
 
@@ -20,7 +20,8 @@
 | 버전 | 사용자에게 배포되는 기능 변경은 APP_VERSION·화면 표시·version.json을 함께 올린다. 문서만 바꿀 때는 올리지 않는다 |
 | 개인 자료 | 사용자의 옷 사진·백업 JSON·진단 원자료는 커밋하지 않는다 |
 | 마무리 | 변경 파일·검증 결과·미확인 사항을 PROJECT.md 현황과 이 파일 5절에 적는다. 커밋 뒤에는 push까지 해서 git status가 origin과 같은지 확인한다(못 하면 5절에 적음) |
-| 검사 | 앱 코드를 바꾸면 두 검사를 모두 돌린다: node tests/regression.cjs, node tests/outfits.cjs. 못 돌렸으면 커밋 메시지와 5절에 '검사 미실행'이라고 적는다 |
+| 검사 | 앱 코드를 바꾸면 두 검사를 모두 돌린다: node tests/regression.cjs, node tests/outfits.cjs. push하면 GitHub Actions(.github/workflows/tests.yml)가 같은 두 검사를 자동으로 돌리므로, 자기 환경에서 못 돌렸으면 push 뒤 Actions 결과(초록/빨강)를 확인하고 5절에 적는다. 빨강이면 바로 고치거나 되돌린다 |
+| 개인정보 | 문서·코드·커밋에 사용자 실명과 회사 메일을 쓰지 않는다. 이 저장소의 커밋 작성자는 GitHub 계정(crossbon24-coder)과 noreply 메일로 한다 |
 
 ## 3. outfits 레코드 계약(Claude 제안, GPT 확인 요청)
 
@@ -62,6 +63,7 @@
 | 2026-09-07 | Claude | 사용자 iPhone 확인: v4.2에서 저장·오늘 입음 뒤 사진 정상("문제없어"). 사진 깨짐 건 종결. 다음 후보: 가려진 사진 13벌(legacy partial=true) 교체용 "사진 바꾸기"를 옷 수정 화면에 넣을지(수정 화면은 GPT 영역이므로 GPT가 맡는 것이 자연스러움, Claude가 대신 해도 됨), 코디·캘린더 실사용 피드백 반영 |
 
 | 2026-09-27 | Claude | 사용자 요청으로 전체 검토(7개 관점, 발견마다 두 검증자). 확인 79건. Claude 담당과 공동 항목의 Claude 쪽을 v4.3으로 반영(outfits.js, tests/outfits.cjs 20개 신설, .gitignore, 버전 표기). index.html은 버전 표기만 바꿈. 3절 계약에 bag 칸·같은 날 집계·끊긴 참조·archived를 추가. GPT에게 7절 표 순서대로 요청. 9월 7일 v4.1/v4.2 index.html 긴급 수정 검토 요청은 아직 응답 없음 |
+| 2026-09-27 | Claude | 사용자 결정 3건 반영: v31.html·category-v356.js 삭제, 실명 제거·커밋 작성자 noreply로 변경, GitHub Actions(tests.yml) 추가. Playwright 기본 Chromium(CI와 같은 조건)으로 regression 37개·outfits 20개 통과 확인. 앱 코드는 바뀌지 않아 버전은 4.3 유지 |
 
 ## 6. 현재 작업 중
 
@@ -93,10 +95,10 @@ GPT에게 요청(우선순위 순)
 | 14 | perf-1, perf-3~7, perf-9 | wear() 뒤 메모리만 고치기, 카드 DOM 재사용·첫 화면 부분 그리기, stabilizeImages 병렬화, 선택 필드 thumb, 추천 계산량, 복원 진행 표시, 세탁 라벨을 Blob으로 | low. 지금 263벌 썸네일에서는 체감 작음(PC 오늘 입음 58ms) |
 | 15 | security-3, security-4, security-5, security-8, critic-3, critic-5, critic-8, critic-9, ios-6, ios-9, ios-10, ios-11, testsdocs-3, testsdocs-8, testsdocs-12 | 복원 검증(SVG 등), CDN SRI, 스크립트 하나 실패 시 앱 멈춤, 상품 URL 정리, 상품명 분류 규칙, 모델 주소, 복수 계절, 단축어 복사, 서비스워커·아이콘, 시트 높이, 단축어 안내 링크, 검사 하네스 허용 목록·버전 표기·순서 의존 | low |
 
-사용자 결정이 필요한 것
+사용자 결정(2026-09-27, 모두 승인·반영)
 
-| id | 내용 |
+| id | 결정과 반영 |
 |---|---|
-| security-1 | v31.html이 같은 wardrobeDB를 열어 저장된 스크립트 실행·복원 중 데이터 손실·향후 DB 업그레이드 차단이 가능하다. 삭제(또는 DB를 열지 않는 안내 페이지로 교체) 권장 |
-| security-7 | 쓰지 않는 category-v356.js와, 사용자 실명이 들어간 PROJECT.md·COLLAB.md가 공개 사이트에 배포된다. 죽은 파일 삭제, 문서의 실명 제거 여부 |
-| testsdocs-5 | GitHub Actions로 push마다 두 검사를 자동 실행(공개 저장소 무료). GPT 환경에서 검사를 못 돌리는 문제를 해결 |
+| security-1 | v31.html 삭제. 같은 wardrobeDB를 여는 구버전 페이지가 사이트에서 사라진다(git 기록에는 남음) |
+| security-7 | 쓰지 않는 category-v356.js 삭제, 문서의 사용자 실명 제거, 이후 커밋 작성자는 GitHub 계정·noreply 메일. 과거 커밋 기록의 작성자 정보는 기록을 다시 쓰지 않는 한 남는다(되돌리기 어려운 강제 push가 필요해 하지 않음) |
+| testsdocs-5 | .github/workflows/tests.yml 추가: main push·PR마다 Ubuntu에서 Playwright 1.63.0 Chromium으로 두 검사를 자동 실행. GPT는 push 뒤 Actions 결과로 검사 여부를 확인할 수 있다 |

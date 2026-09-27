@@ -1,0 +1,42 @@
+# push·PR마다 두 회귀 검사를 돌린다. 앱 실행에는 필요 없는 개발용 검사다(공개 저장소는 Actions 무료).
+# Playwright는 저장소 밖 임시 폴더에 설치해 저장소에 package.json·node_modules를 만들지 않는다.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright and Chromium (test-only)
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw"
+          cd "$RUNNER_TEMP/pw"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund playwright@1.63.0
+          npx playwright install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Regression suite (tests/regression.cjs)
+        run: node tests/regression.cjs
+
+      - name: Outfit suite (tests/outfits.cjs)
+        run: node tests/outfits.cjs

@@ -26,6 +26,12 @@
 - v4.1/v4.2의 WebKit 사진 깨짐은 Chromium에서 재현되지 않는다. 그 수정의 근거는 사용자 iPhone 확인(2026-09-07)이고, 자동 검사는 이제 URL 불변식만 지킨다.
 - 390px 화면 캡처로 고르기 시트·코디 만들기·캘린더·추천 연결 배치를 확인했다. iPhone 실기기는 사용자 확인 필요.
 
+### 사용자 결정 반영(같은 날, 앱 코드 변경 없음)
+
+- v31.html(같은 wardrobeDB를 여는 구버전)과 쓰지 않는 category-v356.js를 삭제했다. 현재 앱 파일은 index.html, wardrobe-import.js, outfits.js, product-shortcut.js, shortcut-help.html, version.json이다.
+- GitHub Actions(.github/workflows/tests.yml): main push·PR마다 Ubuntu·Node 22·Playwright 1.63.0 Chromium으로 tests/regression.cjs와 tests/outfits.cjs를 돌린다. Playwright는 임시 폴더에 설치하고 NODE_PATH로 연결해 저장소에 package.json을 만들지 않는다. Pages 배포는 검사와 별개로 main에서 바로 된다(검사 실패가 배포를 막지는 않으므로 빨강이면 바로 고친다).
+- 문서의 사용자 실명을 지우고, 이 저장소 커밋 작성자를 GitHub 계정과 noreply 메일로 바꿨다(저장소 로컬 git 설정). 과거 커밋의 작성자 정보는 남아 있다.
+
 ## 이전 기준 — v4.0~v4.2 (코디 만들기·저장 코디·착용 캘린더, iPhone 사진 수정) — Claude Code, 2026-09-07
 
 사용자가 이 저장소에서 Claude Code와 GPT가 함께 개발하기로 결정했다(분담·규칙·대화는 COLLAB.md). v4.0은 Claude가 맡은 코디 영역이며, 아래가 v3.9 현황보다 우선한다. 등록·분류·상품 가져오기·세탁 정보·추천(recommend)은 v3.9 그대로다.
@@ -253,8 +259,8 @@
 | --- | --- |
 | `index.html` | 현재 앱. HTML, CSS, 앱 JavaScript가 한 파일에 포함됨 |
 | `version.json` | 최신 버전 확인용 메타데이터 |
-| `category-v356.js` | 과거 실루엣 기반 분류 스크립트. 파일 내부 주석은 v3.5.2이며 현재 index.html에서 참조하지 않음 |
-| `v31.html` | 별도 v3.1 구버전 페이지. 같은 DB명·버전·store를 사용함 |
+| `category-v356.js` | 과거 실루엣 기반 분류 스크립트. 파일 내부 주석은 v3.5.2이며 현재 index.html에서 참조하지 않음 (2026-09-27 삭제) |
+| `v31.html` | 별도 v3.1 구버전 페이지. 같은 DB명·버전·store를 사용함 (2026-09-27 삭제: 같은 DB를 열어 데이터 손실·스크립트 실행 위험) |
 | `README.md` | 저장소 제목만 존재했음 |
 | `PROJECT.md` | 이번 인수 시 추가한 개발 원칙·현황·사례 문서 |
 
