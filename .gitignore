@@ -1,0 +1,9 @@
+# 개인 자료는 공개 저장소에 올리지 않는다(PROJECT.md 원칙). 앱이 내려받게 하는 파일 이름 기준.
+*backup*.json
+wardrobe-tests-*.json
+*diagnostic*.json
+*.heic
+photos/
+# 개발 도구(앱 실행에는 필요 없음)
+node_modules/
+package-lock.json
