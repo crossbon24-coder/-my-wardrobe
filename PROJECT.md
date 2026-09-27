@@ -3,7 +3,30 @@
 이 문서는 이 저장소를 이어서 개발하는 작업자의 기준 문서다. 매 작업을 시작할 때 최신 `PROJECT.md`, 실제 코드, `version.json` 및 저장소 지침을 먼저 읽는다. 현재 사용자의 명시적인 지시가 우선하며, 이 문서를 근거로 요청 범위 밖의 구현을 시작하지 않는다.
 
 
-## 현재 기준 — v4.0 (코디 만들기·저장 코디·착용 캘린더) — Claude Code, 2026-09-07
+## 현재 기준 — v4.3 (전체 검토 반영) — Claude Code, 2026-09-27
+
+사용자 요청으로 앱 전체를 7개 관점(코디 기능, 데이터 처리, iPhone, 속도, 사용 흐름, 보안, 테스트·문서)에서 검토했다. 발견 82건 중 두 검증자(코드 추적, 로컬 Chrome 재현)가 확인한 것이 79건, 개연 1건, 탈락 2건이다. 발견 목록과 담당은 COLLAB.md 7절에 있다. 이번 버전은 Claude 담당(outfits.js)과 공동 항목의 Claude 쪽만 반영했다. index.html은 버전 표기(APP_VERSION·화면·?v=)만 바꿨다.
+
+### 바뀐 것(outfits.js)
+
+- 코디 고르기 시트: 고정 머리글(닫기 44px, 검색 이름·종류·색·브랜드, 정렬 최근 등록/오래 안 입은/많이 입은/색상, 세부종류 칩, '전체 분류'), 3열 사진 아래 이름, 칸 비우기. archived:true인 옷은 후보에서 뺀다(보관 기능은 GPT 몫, 필드만 미리 대응).
+- 저장 코디: 불러오면 editId·이름을 기억하고 '덮어쓰기'(같은 id의 name·slots만 바꾸고 worn·createdAt 유지)와 '새로 저장'을 나눈다. 저장 뒤에는 저장한 코디를 편집 대상으로 두어 다시 눌러도 복제되지 않는다. 저장 중 잠금, 비운 이름은 'M/D 코디', 목록에 '이름' 버튼, 목록 30개씩 '더 보기'.
+- slots.bag 선택 칸 추가(COLLAB.md 3절). acc는 액세서리 전용. 옛 코디 acc의 가방은 그대로 보인다.
+- 옷 수정 창에 outfits.js가 '코디에 담기' 버튼을 붙인다(수정 중이던 값이 있으면 확인). recommend()를 감싸 결과 아래에 '코디 탭에 담기'를 붙인다(currentRecommendation 사용).
+- 착용 기록: 미래 날짜 거부(버튼도 숨김). 같은 날 다른 코디나 옷장 카드로 이미 센 옷(같은 현지 날짜의 lastWorn 또는 다른 코디의 worn)은 wearCount를 다시 올리지 않는다. 같은 날 재기록·코디를 못 찾은 경우에는 refresh()를 하지 않는다. 앱을 켜 둔 채 달이 바뀌면 visibilitychange에서 캘린더를 이번 달로 맞춘다.
+- 옷장 탭: 검색은 카드 글자 대신 옷 데이터(memo·type·category·color·season·상품 brand/name)로, 여러 단어는 AND. render 직후 카드 순서를 closetOrder()로 재현해 data-of-id를 붙이고 이후 정렬·검색은 그 표시로 한다(대응이 안 되면 카드 제목·설명 글자로 대체). 검색 0건은 별도 문구(#closetNoMatch), #empty는 원래 규칙만. 정렬 선택(localStorage 'wardrobe.closetSort'), 4열에서 이름 한 줄 유지.
+- 초안(draft·이름·editId)을 localStorage 'wardrobe.outfitDraft'에 보존하고, 옷이 1벌 이상 읽힌 뒤 없는 id를 비운다. 저장할 때도 실제 있는 옷만 slots에 넣는다.
+- 속도: 감싼 render는 코디 탭이 보일 때만 코디 화면을 그리고(showPage도 감쌈), 숨었을 때는 표시만 해 둔다. 저장·이름·삭제·기록 삭제는 outfits store만 다시 읽는다(refreshOutfits). 작은 코디 사진은 loading=lazy.
+- 견고성: norm()이 worn('YYYY-MM-DD' 문자열만, 중복 제거)·slots·name·createdAt을 읽을 때 정리하고, 화면 값은 esc를 거친다. 코디 화면·옷장 검색·고르기 그리기를 각각 따로 try로 감싸고 오류 수를 OF.errors로 센다. OF.hasDraft()는 저장하지 않은 코디 초안이 있는지 알려 준다(업데이트 전 확인용, GPT가 쓸 수 있음). pageshow(persisted) 때 열린 시트를 다시 그린다. 터치 영역 44px, 칸에 role=button·키보드 조작.
+
+### 검사
+
+- tests/outfits.cjs 신설(Claude): 20개. 검사마다 새 브라우저 컨텍스트(빈 DB), 합성 이미지만 사용, 정적 파일 허용 목록 없이 저장소 파일을 제공, pageerror·console.error·OF.errors가 하나라도 있으면 실패. v4.2 사진 URL 불변식(오늘 입음 뒤 같은 Blob·같은 URL·로드 성공)을 포함한다. 수정 전 코드에 돌리면 20개 중 16개가 실패함을 확인했다.
+- tests/regression.cjs 37개 통과(변경 없음). 둘 다 로컬 Chrome(Playwright 1.63.0, WARDROBE_TEST_CHROMIUM)으로 실행했다.
+- v4.1/v4.2의 WebKit 사진 깨짐은 Chromium에서 재현되지 않는다. 그 수정의 근거는 사용자 iPhone 확인(2026-09-07)이고, 자동 검사는 이제 URL 불변식만 지킨다.
+- 390px 화면 캡처로 고르기 시트·코디 만들기·캘린더·추천 연결 배치를 확인했다. iPhone 실기기는 사용자 확인 필요.
+
+## 이전 기준 — v4.0~v4.2 (코디 만들기·저장 코디·착용 캘린더, iPhone 사진 수정) — Claude Code, 2026-09-07
 
 사용자가 이 저장소에서 Claude Code와 GPT가 함께 개발하기로 결정했다(분담·규칙·대화는 COLLAB.md). v4.0은 Claude가 맡은 코디 영역이며, 아래가 v3.9 현황보다 우선한다. 등록·분류·상품 가져오기·세탁 정보·추천(recommend)은 v3.9 그대로다.
 

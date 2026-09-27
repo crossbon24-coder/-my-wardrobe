@@ -22,7 +22,7 @@
   let draft={...EMPTY},draftName='',editId=null,saving=false;
   let pickSlot=null,pickAll=false,pickQuery='',pickType='',pickSort='recent';
   let view='list',sortKey='recent',listLimit=LIST_STEP,calMonth=null,calAutoMonth=null,calDay=null,addWornFor=null;
-  let closetQuery='',dense=false,toastTimer=null,outfitDirty=true;
+  let closetQuery='',closetSort='recent',dense=false,toastTimer=null,outfitDirty=true;
 
   const pad=n=>String(n).padStart(2,'0');
   const fmtDate=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; // 현지 날짜. toISOString은 UTC라 쓰지 않는다
@@ -116,12 +116,13 @@
   function builderHTML(){
     const editing=editId?outfits.find(o=>o.id===editId):null;
     const btns=editing
-      ?`<button type="button" style="flex:none" ${saving?'disabled':''} onclick="OF.save()">덮어쓰기</button><button type="button" class="secondary" style="flex:none" ${saving?'disabled':''} onclick="OF.saveNew()">새로 저장</button>`
-      :`<button type="button" style="flex:none" ${saving?'disabled':''} onclick="OF.save()">저장</button>`;
+      ?`<button type="button" ${saving?'disabled':''} onclick="OF.save()">덮어쓰기</button><button type="button" class="secondary" ${saving?'disabled':''} onclick="OF.saveNew()">새로 저장</button>`
+      :`<button type="button" ${saving?'disabled':''} onclick="OF.save()">저장</button>`;
     return `<div class="card"><h2>코디 만들기</h2>
         ${editing?`<p class="small of-editing">저장된 코디 <b>${esc(norm(editing).name)}</b>을(를) 고치는 중입니다. 칸을 바꾼 뒤 '덮어쓰기'를 누르세요. <button type="button" class="ghost" onclick="OF.clearAll()">새 코디 시작</button></p>`:'<p class="small">칸을 눌러 옷을 고르세요. 옷장에서 옷 사진을 누르고 \'코디에 담기\'로도 넣을 수 있습니다. 아우터·가방·액세서리는 비워도 됩니다.</p>'}
         ${flatLayHTML(draft,{editable:true})}
-        <div class="row" style="margin-top:12px;align-items:center"><input id="outfitName" placeholder="코디 이름 (선택)" value="${esc(draftName)}" oninput="OF.name(this.value)" aria-label="코디 이름">${btns}<button type="button" class="secondary" style="flex:none" onclick="OF.clearAll()">비우기</button></div>
+        <input id="outfitName" style="margin-top:12px" placeholder="코디 이름 (비우면 날짜로)" value="${esc(draftName)}" oninput="OF.name(this.value)" aria-label="코디 이름">
+        <div class="row" style="margin-top:4px">${btns}<button type="button" class="secondary" onclick="OF.clearAll()">비우기</button></div>
       </div>`;
   }
   function renderOutfitPage(){
@@ -144,7 +145,7 @@
   // ---------- 고르기 시트 ----------
   function pickCandidates(){
     const meta=SLOTS.find(s=>s.key===pickSlot);if(!meta)return [];
-    let list=clothes.filter(c=>pickAll||meta.cats.includes(c.category));
+    let list=clothes.filter(c=>!c.archived&&(pickAll||meta.cats.includes(c.category)));
     if(pickType)list=list.filter(c=>(c.type||'기타')===pickType);
     const ts=terms(pickQuery);if(ts.length)list=list.filter(c=>{const h=hay(c);return ts.every(t=>h.includes(t))});
     list=list.slice();
@@ -162,7 +163,7 @@
   }
   function renderPick(){
     const meta=SLOTS.find(s=>s.key===pickSlot);if(!meta)return;
-    const base=clothes.filter(c=>pickAll||meta.cats.includes(c.category));
+    const base=clothes.filter(c=>!c.archived&&(pickAll||meta.cats.includes(c.category)));
     const types=[...new Set(base.map(c=>c.type||'기타'))].sort((a,b)=>a.localeCompare(b,'ko'));
     if(pickType&&!types.includes(pickType))pickType='';
     const typeChips=types.length>1?`<div class="chips pick-chips"><button type="button" class="chip${pickType?'':' on'}" onclick="OF.pickType('')">전체</button>${types.map(t=>`<button type="button" class="chip${pickType===t?' on':''}" onclick="OF.pickType(${arg(t)})">${esc(t)}</button>`).join('')}</div>`:'';
@@ -183,6 +184,13 @@
   }
 
   // ---------- 저장(IndexedDB) ----------
+  // 코디만 바뀐 경우: 옷 전체를 다시 읽지 않고 outfits만 읽어 코디 화면과 개수만 갱신한다
+  async function refreshOutfits(){
+    outfits=await all('outfits');
+    const sv=$('saved');if(sv)sv.textContent=outfits.length;
+    const sm=$('summary');if(sm)sm.textContent=`옷 ${clothes.length}벌 · 저장 코디 ${outfits.length}개`;
+    refreshOutfitView();
+  }
   function defaultName(){
     const d=new Date(),base=`${d.getMonth()+1}/${d.getDate()} 코디`,names=new Set(outfits.map(o=>o.name));
     if(!names.has(base))return base;let n=2;while(names.has(`${base} ${n}`))n++;return `${base} ${n}`;
@@ -203,7 +211,7 @@
         else{savedId=crypto.randomUUID();os.add({id:savedId,name,slots,createdAt:Date.now(),worn:[]})}
       });
       // 저장한 코디를 계속 편집 대상으로 둔다: 다시 누르면 복제가 아니라 덮어쓰기
-      setDraft(slots,name,savedId);saving=false;await refresh();
+      setDraft(slots,name,savedId);saving=false;await refreshOutfits();
       say(overwrote?'코디를 덮어썼습니다':'코디를 저장했습니다');
     }catch(e){reportError(e,'코디를 저장하지 못했습니다.')}
     finally{saving=false;refreshOutfitView()}
@@ -211,13 +219,13 @@
   async function renameOutfit(id){
     const o=outfits.find(x=>x.id===id);if(!o)return;
     const v=prompt('코디 이름',norm(o).name);if(v===null)return;const name=v.trim();if(!name)return say('이름을 입력해주세요');
-    try{await transaction(['outfits'],'readwrite',tx=>{const os=tx.objectStore('outfits'),q=os.get(id);q.onsuccess=()=>{if(q.result)os.put({...q.result,name})}});if(editId===id){draftName=name;persistDraft()}await refresh();say('이름을 바꿨습니다')}
+    try{await transaction(['outfits'],'readwrite',tx=>{const os=tx.objectStore('outfits'),q=os.get(id);q.onsuccess=()=>{if(q.result)os.put({...q.result,name})}});if(editId===id){draftName=name;persistDraft()}await refreshOutfits();say('이름을 바꿨습니다')}
     catch(e){reportError(e,'이름을 바꾸지 못했습니다.')}
   }
   async function deleteOutfit(id){
     const o=outfits.find(x=>x.id===id);
     if(!confirm(`'${o?norm(o).name:'이 코디'}'를 삭제할까요? 옷은 그대로 남고, 이 코디의 착용 기록(캘린더)은 사라집니다.`))return;
-    try{await transaction(['outfits'],'readwrite',tx=>{tx.objectStore('outfits').delete(id)});if(editId===id){editId=null;persistDraft()}await refresh();say('삭제했습니다')}
+    try{await transaction(['outfits'],'readwrite',tx=>{tx.objectStore('outfits').delete(id)});if(editId===id){editId=null;persistDraft()}await refreshOutfits();say('삭제했습니다')}
     catch(e){reportError(e,'삭제하지 못했습니다.')}
   }
   async function markWorn(id,date){
@@ -240,14 +248,14 @@
             cs.put({...c,wearCount:(c.wearCount||0)+(sameDay?0:1),lastWorn:Math.max(c.lastWorn||0,ts)})}}
         };
       });
-      await refresh();
+      if(found&&!dup)await refresh(); // 옷의 착용 횟수가 바뀌었을 때만 전체를 다시 읽는다
       say(!found?'코디를 찾지 못했습니다':dup?(date===today()?'오늘은 이미 기록되어 있습니다':'이미 기록된 날입니다'):(date===today()?'오늘 입은 것으로 기록했습니다':`${fmtKo(date)}에 기록했습니다`));
     }catch(e){reportError(e,'착용 기록을 저장하지 못했습니다.')}
   }
   async function unmarkWorn(id,date){
     try{
       await transaction(['outfits'],'readwrite',tx=>{const os=tx.objectStore('outfits'),q=os.get(id);q.onsuccess=()=>{const o=q.result;if(o)os.put({...o,worn:(Array.isArray(o.worn)?o.worn:[]).filter(d=>d!==date)})}});
-      await refresh();say('기록을 지웠습니다. 옷의 착용 횟수는 그대로 둡니다.');
+      await refreshOutfits();say('기록을 지웠습니다. 옷의 착용 횟수는 그대로 둡니다.');
     }catch(e){reportError(e,'기록을 지우지 못했습니다.')}
   }
 
@@ -266,6 +274,22 @@
     if(btn)showPage('outfit',btn);else refreshOutfitView();
     window.scrollTo(0,0);say(`${SLOTS.find(s=>s.key===slot).label} 칸에 담았습니다`);
   }
+  function recommendationToOutfit(){
+    const ids=typeof currentRecommendation!=='undefined'&&Array.isArray(currentRecommendation)?currentRecommendation:[];
+    const next={...EMPTY};for(const id of ids){const c=byId(id);const k=c&&SLOT_BY_CAT[c.category];if(k&&!next[k])next[k]=id}
+    if(!Object.values(next).some(Boolean))return say('담을 추천 결과가 없습니다');
+    if(OF.hasDraft()&&!confirm('만들던 코디 초안을 추천 결과로 바꿀까요?'))return;
+    setDraft(next,'',null);
+    const btn=[...document.querySelectorAll('nav button')].find(b=>(b.getAttribute('onclick')||'').includes("'outfit'"));
+    if(btn)showPage('outfit',btn);else refreshOutfitView();
+    window.scrollTo(0,0);say('추천을 코디 칸에 담았습니다. 바꿀 칸을 누른 뒤 저장하세요.');
+  }
+  function installRecommendHook(){
+    if(typeof window.recommend!=='function'||window.recommend.ofWrapped)return;
+    const base=window.recommend;
+    const wrapped=function(){const r=base.apply(this,arguments);safe(()=>{const box=$('result');if(!box||!box.querySelector('.recgrid'))return;const b=document.createElement('button');b.type='button';b.id='ofRecBtn';b.textContent='코디 탭에 담기';b.style.width='100%';b.style.marginTop='10px';b.onclick=recommendationToOutfit;box.appendChild(b)},'추천 연결');return r};
+    wrapped.ofWrapped=true;window.recommend=wrapped;
+  }
   function installEditButton(){
     const save=$('editSaveBtn');if(!save||$('ofAddBtn'))return;
     const row=save.parentNode,b=document.createElement('button');
@@ -278,12 +302,13 @@
   function installClosetTools(){
     const filters=$('filters');if(!filters||$('closetTools'))return;
     const div=document.createElement('div');div.id='closetTools';div.className='row';div.style.alignItems='center';
-    div.innerHTML=`<input id="closetSearch" type="search" placeholder="검색: 이름·종류·색·브랜드" aria-label="옷장 검색" autocomplete="off"><span id="closetSearchStat" class="small muted" style="flex:none" hidden></span><button type="button" id="densityBtn" class="secondary" style="flex:none">4열</button>`;
+    div.innerHTML=`<input id="closetSearch" type="search" placeholder="검색: 이름·종류·색·브랜드" aria-label="옷장 검색" autocomplete="off"><span id="closetSearchStat" class="small muted" style="flex:none" hidden></span><select id="closetSort" aria-label="옷장 정렬" style="flex:none;width:auto;margin:0"><option value="recent">최근 등록</option><option value="stale">오래 안 입은</option><option value="most">많이 입은</option><option value="color">색상</option></select><button type="button" id="densityBtn" class="secondary" style="flex:none">4열</button>`;
     filters.parentNode.insertBefore(div,filters);
     const items=$('items');
     if(items&&!$('closetNoMatch')){const p=document.createElement('p');p.id='closetNoMatch';p.className='empty';p.hidden=true;items.parentNode.insertBefore(p,items.nextSibling)}
     $('closetSearch').oninput=e=>{closetQuery=e.target.value;safe(applyClosetTools,'옷장 검색')};
     $('densityBtn').onclick=()=>{dense=!dense;try{localStorage.setItem('wardrobe.dense',dense?'1':'')}catch{}safe(applyClosetTools,'옷장 검색')};
+    const so=$('closetSort');so.value=closetSort;so.onchange=e=>{closetSort=e.target.value;try{localStorage.setItem('wardrobe.closetSort',closetSort)}catch{}safe(applyClosetTools,'옷장 정렬')};
   }
   // index.html render()와 같은 기준으로 카드 순서를 재현해 카드마다 옷 데이터를 대응시킨다(버튼 글자 대신 데이터로 검색)
   function closetOrder(){const f=typeof filter!=='undefined'?filter:'전체';return (f==='전체'?clothes:clothes.filter(c=>c.category===f)).slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))}
@@ -291,13 +316,23 @@
     const items=$('items');if(!items)return;
     items.classList.toggle('dense',dense);
     const btn=$('densityBtn');if(btn)btn.textContent=dense?'2열':'4열';
-    const kids=[...items.children],list=closetOrder();
-    const aligned=list.length===kids.length&&kids.every((el,i)=>{const im=el.querySelector('img');return !!im&&im.alt===String(title(list[i]))});
+    const kids=[...items.children];
+    if(kids.some(el=>!el.dataset.ofId)){ // render 직후: 카드 순서로 옷을 대응시켜 표시해 둔다(이후 정렬·검색은 이 표시로)
+      const list=closetOrder();
+      const aligned=list.length===kids.length&&kids.every((el,i)=>{const im=el.querySelector('img');return !!im&&im.alt===String(title(list[i]))});
+      if(aligned)kids.forEach((el,i)=>{el.dataset.ofId=String(list[i].id)});
+    }
+    const itemOf=el=>el.dataset.ofId?clothes.find(c=>String(c.id)===el.dataset.ofId)||null:null;
     const ts=terms(closetQuery);let n=0;
-    kids.forEach((el,i)=>{
-      const text=aligned?hay(list[i]):[...el.querySelectorAll('.title,.muted')].map(x=>x.textContent).join(' ').toLowerCase();
+    kids.forEach(el=>{
+      const c=itemOf(el),text=c?hay(c):[...el.querySelectorAll('.title,.muted')].map(x=>x.textContent).join(' ').toLowerCase();
       const hit=!ts.length||ts.every(t=>text.includes(t));el.hidden=!hit;if(hit)n++;
     });
+    const so=$('closetSort');if(so&&so.value!==closetSort)so.value=closetSort;
+    if(kids.every(el=>itemOf(el))){ // 모든 카드가 대응될 때만 순서를 바꾼다
+      const by={recent:(a,b)=>(b.createdAt||0)-(a.createdAt||0),stale:(a,b)=>(a.lastWorn||0)-(b.lastWorn||0)||(b.createdAt||0)-(a.createdAt||0),most:(a,b)=>(b.wearCount||0)-(a.wearCount||0)||(b.createdAt||0)-(a.createdAt||0),color:(a,b)=>String(a.color||'').localeCompare(String(b.color||''),'ko')||(b.createdAt||0)-(a.createdAt||0)}[closetSort]||null;
+      if(by){const sorted=kids.slice().sort((x,y)=>by(itemOf(x),itemOf(y)));if(sorted.some((el,i)=>el!==kids[i])){const frag=document.createDocumentFragment();sorted.forEach(el=>frag.appendChild(el));items.appendChild(frag)}}
+    }
     const st=$('closetSearchStat');if(st){st.hidden=!ts.length;st.textContent=`${n}벌`}
     const empty=$('empty');if(empty)empty.style.display=kids.length?'none':'block'; // render()의 원래 규칙: 현재 필터 결과가 0일 때만
     const nm=$('closetNoMatch');if(nm){const show=ts.length>0&&kids.length>0&&n===0;nm.hidden=!show;if(show)nm.textContent=`'${closetQuery.trim()}'에 맞는 옷이 없습니다.`}
@@ -352,6 +387,7 @@
 #items.dense .info>:not(.title){display:none}
 #items.dense .info .title{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #ofAddBtn{width:100%}
+#closetTools select{padding:10px 8px;font-size:14px}
 #ofToast{position:fixed;left:50%;bottom:calc(74px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#171717;color:#fff;border-radius:999px;padding:9px 14px;font-size:13px;z-index:60;max-width:90vw;display:none}
 #ofToast.show{display:block}`;
     document.head.appendChild(s);
@@ -395,8 +431,8 @@
   };
 
   function init(){
-    injectCSS();ensureDOM();installClosetTools();installEditButton();restoreDraft();
-    try{dense=localStorage.getItem('wardrobe.dense')==='1'}catch{}
+    try{dense=localStorage.getItem('wardrobe.dense')==='1';closetSort=localStorage.getItem('wardrobe.closetSort')||'recent'}catch{}
+    injectCSS();ensureDOM();installClosetTools();installEditButton();installRecommendHook();restoreDraft();
     const baseRender=window.render;
     window.render=function(){
       baseRender.apply(this,arguments);
