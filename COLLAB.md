@@ -19,7 +19,8 @@
 | 데이터 | wardrobeDB v1, clothes·outfits store, keyPath id, 기존 clothes 필드 의미를 바꾸지 않는다. 새 정보는 선택 필드로만 추가한다. outfits 레코드 계약은 3절을 따른다 |
 | 버전 | 사용자에게 배포되는 기능 변경은 APP_VERSION·화면 표시·version.json을 함께 올린다. 문서만 바꿀 때는 올리지 않는다 |
 | 개인 자료 | 사용자의 옷 사진·백업 JSON·진단 원자료는 커밋하지 않는다 |
-| 마무리 | 변경 파일·검증 결과·미확인 사항을 PROJECT.md 현황과 이 파일 5절에 적는다 |
+| 마무리 | 변경 파일·검증 결과·미확인 사항을 PROJECT.md 현황과 이 파일 5절에 적는다. 커밋 뒤에는 push까지 해서 git status가 origin과 같은지 확인한다(못 하면 5절에 적음) |
+| 검사 | 앱 코드를 바꾸면 두 검사를 모두 돌린다: node tests/regression.cjs, node tests/outfits.cjs. 못 돌렸으면 커밋 메시지와 5절에 '검사 미실행'이라고 적는다 |
 
 ## 3. outfits 레코드 계약(Claude 제안, GPT 확인 요청)
 
@@ -29,11 +30,13 @@
 |---|---|---|
 | id | string | crypto.randomUUID() |
 | name | string | 코디 이름. 비면 "코디 n" |
-| slots | object | {outer, top, bottom, shoes, acc} 각각 clothes.id 또는 null. acc는 가방·액세서리 |
+| slots | object | {outer, top, bottom, shoes, bag, acc} 각각 clothes.id 또는 null. bag은 v4.3 선택 칸(없으면 null), acc는 액세서리. v4.2 이전 코디의 acc에는 가방이 있을 수 있다 |
 | createdAt | number(ms) | clothes와 같은 기준 |
 | worn | string[] | 입은 날짜 "YYYY-MM-DD"(현지 날짜), 중복 없이 오름차순 |
 
-코디에 "오늘 입음"을 기록하면 worn에 날짜를 넣는 동시에 구성 옷들의 wearCount를 1 올리고 lastWorn을 갱신한다. 그래야 기존 추천 점수(마지막 착용 경과)가 코디 기록과 함께 움직인다. 옷을 삭제하면 그 id가 들어간 slots 값은 null로 둔다(코디는 남긴다).
+코디에 "오늘 입음"을 기록하면 worn에 날짜를 넣는 동시에 구성 옷들의 wearCount를 1 올리고 lastWorn을 갱신한다. 그래야 기존 추천 점수(마지막 착용 경과)가 코디 기록과 함께 움직인다. 같은 날 이미 센 옷(같은 현지 날짜의 lastWorn 또는 같은 날짜의 다른 코디)은 wearCount를 다시 올리지 않는다. 미래 날짜는 기록하지 않는다.
+
+끊긴 참조: 복원(교체)이나 옷 삭제로 slots에 없는 옷 id가 남을 수 있다. 화면은 빈 칸으로 보이고, 저장할 때는 있는 옷만 넣는다(outfits.js). 옷 삭제 기능을 넣을 때는 clothes 삭제와 해당 slots의 null 처리를 한 트랜잭션에서 한다. 보관은 선택 필드 archived:true로 하고, 보관한 옷은 고르기 시트에서 숨긴다(v4.3 반영).
 
 ## 4. Claude가 만들 코디 기능(outfits.js) 요약
 
@@ -58,11 +61,42 @@
 | 2026-09-07 | Claude | v4.1 뒤 사용자 재보고: "오늘 입음" 뒤 다시 깨짐(토스트 없음). 원인: 레코드 put 시 WebKit이 옛 Blob 파일을 정리해 화면의 옛 Blob URL이 죽음. v4.2: refresh()에서 stabilizeImages()로 image를 메모리 사본 Blob으로 바꿔 화면은 사본만 쓰게 함(id·크기·타입 같으면 재사용, adoptImageURLs 제거). index.html에 12줄. 회귀 37개 통과. GPT 검토 요청: 이 방식이면 v3.x wear() 뒤 iPhone 사진 깨짐도 함께 해결됨. 사진이 1200px로 커지면 메모리 사본 비용을 지켜볼 것 |
 | 2026-09-07 | Claude | 사용자 iPhone 확인: v4.2에서 저장·오늘 입음 뒤 사진 정상("문제없어"). 사진 깨짐 건 종결. 다음 후보: 가려진 사진 13벌(legacy partial=true) 교체용 "사진 바꾸기"를 옷 수정 화면에 넣을지(수정 화면은 GPT 영역이므로 GPT가 맡는 것이 자연스러움, Claude가 대신 해도 됨), 코디·캘린더 실사용 피드백 반영 |
 
+| 2026-09-27 | Claude | 사용자 요청으로 전체 검토(7개 관점, 발견마다 두 검증자). 확인 79건. Claude 담당과 공동 항목의 Claude 쪽을 v4.3으로 반영(outfits.js, tests/outfits.cjs 20개 신설, .gitignore, 버전 표기). index.html은 버전 표기만 바꿈. 3절 계약에 bag 칸·같은 날 집계·끊긴 참조·archived를 추가. GPT에게 7절 표 순서대로 요청. 9월 7일 v4.1/v4.2 index.html 긴급 수정 검토 요청은 아직 응답 없음 |
+
 ## 6. 현재 작업 중
 
 | 작업자 | 파일 | 내용 | 시작 | 상태 |
 |---|---|---|---|---|
-| Claude | outfits.js, index.html(연결부), version.json, PROJECT.md, README.md | v4.0 코디 기능 | 2026-09-07 | 완료. index.html 점유 해제 |
-| Claude | index.html(refresh 6줄), outfits.js, version.json | v4.1 iPhone 사진 깨짐 수정 | 2026-09-07 | 완료. index.html 점유 해제 |
-| Claude | index.html(refresh·stabilizeImages), version.json | v4.2 오늘 입음 뒤 사진 깨짐 수정 | 2026-09-07 | 완료. index.html 점유 해제 |
-| GPT | COLLAB.md | 5절 질문 답변 기록 | 2026-09-07 | 완료 |
+진행 중인 작업만 적고, 끝나면 지운다(끝난 기록은 5절). 지금 진행 중인 작업은 없다.
+
+## 7. 2026-09-27 전체 검토 — 남은 일과 담당
+
+검토 결과 원자료(발견별 근거·재현 수치)는 Claude 쪽 작업 기록에 있고, 요약만 적는다. id는 검토 때 붙인 번호다. Claude 담당·공동 항목의 Claude 쪽은 v4.3에서 반영했다(PROJECT.md v4.3 절).
+
+GPT에게 요청(우선순위 순)
+
+| 순서 | id | 내용 | 비고 |
+|---|---|---|---|
+| 1 | ios-1, ios-3 | Safari 탭은 7일 미사용 시 저장소가 지워질 수 있고 홈 화면 앱과 저장소가 따로임을 앱이 알려 줄 것(홈 화면 모드 감지 navigator.standalone). navigator.storage.persist() 요청, 마지막 백업 날짜 표시와 오래되면 알림 | 데이터 손실 위험, high |
+| 2 | ux-3 | 옷 삭제·보관. 수정 창에 '보관'(선택 필드 archived:true, 옷장·추천에서 숨김, 보관함에서 되살림)과 '완전 삭제'(clothes 삭제와 outfits slots null을 한 트랜잭션, 확인 창에 코디 N개 영향) | high. 고르기 시트는 archived를 이미 숨김 |
+| 3 | ux-7 | 옷 사진 바꾸기(가려진 사진 13벌 교체, id·기록 유지, partial 해제) | medium |
+| 4 | core-1 | 업데이트·강제 새로고침 전에 저장 안 한 작업 확인(batch, productDraft, editingId, OF.hasDraft()) | medium |
+| 5 | ux-9, core-7 | 수정 창 바깥 탭으로 입력이 사라짐 → 바뀐 값이 있으면 확인. pagehide에서 persisted면 URL 해제하지 않기 | medium |
+| 6 | ux-5, core-3 | 옷장 카드 '오늘 입음'에 같은 날 확인과 되돌리기 알림(ofToast 공유 가능) | medium. 코디 쪽은 같은 날 중복 집계를 이미 막음 |
+| 7 | ios-5 | 등록 목록·세탁 입력칸 13px → 16px(iPhone 확대 방지) | medium, S |
+| 8 | critic-1, critic-2 | 사진을 더 고르면 등록 목록이 통째로 바뀜 → 이어서 추가. 등록 목록을 앱 전환 뒤에도 보존 | medium |
+| 9 | ios-2, perf-2, core-4, critic-6 | 홈 화면 앱에서 백업 내려받기(Quick Look) 검증 또는 navigator.share(files) 사용, 백업 전 복원 가능성 검사, 파일 이름 현지 날짜 | medium |
+| 10 | ux-2, critic-4 | recommend()가 서로 다른 조합 N개, 추운 날·격식 3 이상이면 아우터, 가방 선택. 같은 색 무조건 감점·동점 처리 | medium. '코디 탭에 담기'는 Claude가 붙임 |
+| 11 | ux-4 | 폰·PC 오가기: 교체 복원 대신 병합 가져오기 | medium |
+| 12 | ux-8, critic-7 | 등록 탭 단순화(사진 등록을 위로), 분석 중 목록 전체 재그리기로 키보드가 닫히는 문제 | medium |
+| 13 | core-2, core-5, core-6, core-8, core-9, ios-4 | 수정 저장이 바꾼 칸만 쓰기, 복원 시 outfits 형식 검사, DB 연결 끊김 재연결, 로딩 실패와 무관하게 업데이트 확인, 일괄 등록 순서 | low |
+| 14 | perf-1, perf-3~7, perf-9 | wear() 뒤 메모리만 고치기, 카드 DOM 재사용·첫 화면 부분 그리기, stabilizeImages 병렬화, 선택 필드 thumb, 추천 계산량, 복원 진행 표시, 세탁 라벨을 Blob으로 | low. 지금 263벌 썸네일에서는 체감 작음(PC 오늘 입음 58ms) |
+| 15 | security-3, security-4, security-5, security-8, critic-3, critic-5, critic-8, critic-9, ios-6, ios-9, ios-10, ios-11, testsdocs-3, testsdocs-8, testsdocs-12 | 복원 검증(SVG 등), CDN SRI, 스크립트 하나 실패 시 앱 멈춤, 상품 URL 정리, 상품명 분류 규칙, 모델 주소, 복수 계절, 단축어 복사, 서비스워커·아이콘, 시트 높이, 단축어 안내 링크, 검사 하네스 허용 목록·버전 표기·순서 의존 | low |
+
+사용자 결정이 필요한 것
+
+| id | 내용 |
+|---|---|
+| security-1 | v31.html이 같은 wardrobeDB를 열어 저장된 스크립트 실행·복원 중 데이터 손실·향후 DB 업그레이드 차단이 가능하다. 삭제(또는 DB를 열지 않는 안내 페이지로 교체) 권장 |
+| security-7 | 쓰지 않는 category-v356.js와, 사용자 실명이 들어간 PROJECT.md·COLLAB.md가 공개 사이트에 배포된다. 죽은 파일 삭제, 문서의 실명 제거 여부 |
+| testsdocs-5 | GitHub Actions로 push마다 두 검사를 자동 실행(공개 저장소 무료). GPT 환경에서 검사를 못 돌리는 문제를 해결 |

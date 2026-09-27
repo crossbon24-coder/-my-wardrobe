@@ -234,6 +234,46 @@ async function check(name, fn) {
     assert.deepEqual(r, { empty: false, unsaved: true, saved: false, changed: true });
   });
 
+  await check('Recommendation result gets a 코디 탭에 담기 button that fills the outfit slots', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); goto('코디 추천'); recommend(); await sleep(50);
+      const btn = document.getElementById('ofRecBtn'); const ids = currentRecommendation.slice(); btn.click(); await sleep(50);
+      const imgs = document.querySelectorAll('#outfit .card .fl-tile img').length;
+      return { btn: !!btn, tab: document.getElementById('outfit').classList.contains('active'), imgs, n: ids.length };
+    });
+    assert.equal(r.btn, true); assert.equal(r.tab, true); assert.equal(r.imgs, r.n);
+  });
+
+  await check('Closet sort reorders cards by data and keeps search working after reordering', async page => {
+    const r = await page.evaluate(async () => {
+      await seed([{ id: 'x1', category: '상의', memo: '가', wearCount: 1 }, { id: 'x2', category: '상의', memo: '나', wearCount: 5 }, { id: 'x3', category: '상의', memo: '다', wearCount: 3 }]);
+      const order = () => [...document.querySelectorAll('#items .item .title')].map(e => e.textContent).join('');
+      const recent = order(); const so = document.getElementById('closetSort'); so.value = 'most'; so.dispatchEvent(new Event('change'));
+      const most = order(); const inp = document.getElementById('closetSearch'); inp.value = '나'; inp.dispatchEvent(new Event('input'));
+      const vis = [...document.querySelectorAll('#items .item')].filter(e => !e.hidden).map(e => e.querySelector('.title').textContent).join('');
+      render(); const afterRender = order();
+      return { recent, most, vis, afterRender, saved: localStorage.getItem('wardrobe.closetSort') };
+    });
+    assert.deepEqual(r, { recent: '다나가', most: '나다가', vis: '나', afterRender: '나다가', saved: 'most' });
+  });
+
+  await check('Outfit-only changes do not re-read clothes; a same-day repeat does not refresh at all', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); goto('코디'); await fill({ top: 't1', bottom: 'b1' }); OF.save(); await sleep(300);
+      let snaps = 0; const orig = window.readSnapshot; window.readSnapshot = function () { snaps++; return orig.apply(this, arguments); };
+      const [o] = await outfitsDB(); promptAnswer = '새이름'; OF.rename(o.id); await sleep(300);
+      const afterRename = snaps; OF.wear(o.id); await sleep(300); const afterWear = snaps; OF.wear(o.id); await sleep(300); const afterDup = snaps;
+      window.readSnapshot = orig;
+      return { afterRename, afterWear, afterDup, summary: document.getElementById('summary').textContent };
+    });
+    assert.deepEqual(r, { afterRename: 0, afterWear: 1, afterDup: 1, summary: '옷 8벌 · 저장 코디 1개' });
+  });
+
+  await check('Archived clothes (optional archived:true) are hidden from the pick sheet', async page => {
+    const n = await page.evaluate(async () => { await basic(); await transaction(['clothes'], 'readwrite', tx => { const st = tx.objectStore('clothes'), q = st.get('t2'); q.onsuccess = () => st.put({ ...q.result, archived: true }); }); await refresh(); goto('코디'); OF.pick('top'); return document.querySelectorAll('#pickGrid .pitem').length; });
+    assert.equal(n, 2);
+  });
+
   await check('v4.2 guard: after 오늘 입음 the displayed image Blobs and object URLs stay the same (WebKit IDB Blob safety)', async page => {
     const r = await page.evaluate(async () => {
       await basic(); const before = clothes.find(c => c.id === 't1'), b = before.image, u = url(b);
