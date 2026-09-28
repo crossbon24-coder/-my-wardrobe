@@ -208,23 +208,20 @@ async function previewProduct(text){
     $('productPhoto').value='';renderProductPhoto();
     $('productStatus').textContent=draft.image?'사진·상품 정보와 구매한 옵션이 맞는지 확인해주세요.':`사진을 가져오지 못했습니다${note?`(${note})`:''}. 상품 사진을 선택하면 정보를 함께 등록할 수 있습니다.`;
     const card=$('productCard');if(card)card.open=true;$('productReview').scrollIntoView({block:'start'});
-  }catch(e){$('productStatus').textContent=e.message;productDraft=null;$('productReview').hidden=true}
+  }catch(e){$('productStatus').textContent=e.message;productDraft=null;$('productReview').hidden=true;productDiag(e.name&&e.name!=='Error'?e.name+': '+e.message:'')}
   finally{productBusy=false;$('productPreviewBtn').disabled=false;$('productQueueBtn').disabled=false;pruneURLs()}
 }
-// '붙여넣기' 버튼: 입력칸을 거치지 않고 클립보드를 바로 읽어 미리보기. iPhone은 누른 자리에 '붙여넣기' 확인 말풍선을 띄우고, 그것을 눌러야 읽힌다.
-// 클립보드 읽기는 누른 직후 곧바로 부르고, 말풍선이 닫히지 않게 읽기가 끝날 때까지 화면을 바꾸거나 스크롤하지 않는다.
-// 누르자마자 안내를 띄우고, 6초가 지나도 읽히지 않으면 '직접 붙여넣기'(입력칸 길게 누르기)로 안내한다
+// '붙여넣기' 버튼: 입력칸을 거치지 않고 클립보드를 바로 읽어 미리보기.
+// iPhone은 readText()를 부르면 앱을 멈추고 누른 버튼 위에 작은 '붙여넣기' 말풍선을 띄운다(그 뒤 코드는 답한 다음에 실행된다).
+// 버튼 폭이 넓으면(300pt 초과) 말풍선이 손가락 바로 위에 떠 가려지므로 버튼 폭을 줄였고, 안내 문구는 버튼 아래에 늘 보이게 둔다.
+// 말풍선이 닫히거나 거절되면 입력칸에 길게 눌러 붙여 넣는 방법으로 안내한다
 function openProductCard(){if(!$('add').classList.contains('active')&&typeof goAdd==='function')goAdd();const card=$('productCard');if(card){card.open=true;card.scrollIntoView({block:'start'})}}
-function pasteByHand(){openProductCard();$('productStatus').textContent='아래 칸을 길게 눌러 붙여넣기를 누르세요. 붙여 넣으면 바로 미리보기가 시작됩니다.';$('productPayload').focus()}
+function pasteByHand(msg){openProductCard();$('productStatus').textContent=msg||'아래 칸을 길게 눌러 붙여넣기를 누르세요. 붙여 넣으면 바로 미리보기가 시작됩니다.';$('productPayload').focus()}
 function pasteProduct(){
   if(productBusy){if(typeof toast==='function')toast('앞 상품을 준비하는 중입니다');return Promise.resolve()}
   const read=navigator.clipboard&&navigator.clipboard.readText?navigator.clipboard.readText():Promise.reject(new Error('unsupported'));
-  const hint="화면에 뜬 '붙여넣기'를 한 번 더 눌러주세요";
-  if(typeof toast==='function')toast(hint);if($('add').classList.contains('active'))$('productStatus').textContent=hint+'.';
-  let done=false;const slow=setTimeout(()=>{if(!done&&typeof toast==='function')toast("'붙여넣기'가 안 보이면 칸에 직접 붙여 넣으세요",'직접 붙여넣기',pasteByHand)},6000);
-  const finish=()=>{done=true;clearTimeout(slow);const t=$('appToast');if(t)t.classList.remove('show')};
-  return read.then(t=>{finish();openProductCard();if(!String(t||'').trim()){$('productStatus').textContent='클립보드가 비어 있습니다. 쇼핑몰에서 단축어를 먼저 실행해주세요.';return}return previewProduct(t)},
-    ()=>{finish();pasteByHand();$('productStatus').textContent='붙여넣기가 허용되지 않았습니다. 아래 칸을 길게 눌러 붙여 넣어주세요(붙여 넣으면 바로 미리보기가 시작됩니다).'});
+  return read.then(t=>{openProductCard();if(!String(t||'').trim()){$('productStatus').textContent='클립보드가 비어 있습니다. 쇼핑몰에서 단축어를 먼저 실행해주세요.';return}return previewProduct(t)},
+    e=>{productDiag(e&&e.name?e.name:'');pasteByHand("'붙여넣기' 말풍선이 닫혔습니다. 버튼을 다시 누르고 버튼 위의 작은 '붙여넣기'를 누르거나, 아래 칸을 길게 눌러 붙여 넣어주세요.")});
 }
 function renderProductPhoto(){
   const im=$('productImage');im.hidden=!productDraft?.image;
@@ -319,10 +316,23 @@ async function copyShortcutScript(){
     shortcutCodeCache=await r.text();show(shortcutCodeCache);st.textContent='코드를 불러왔습니다. 한 번 더 누르면 복사합니다(또는 아래 칸을 길게 눌러 복사).';
   }catch(e){st.textContent=e.message}
 }
+// 가져오기 상태 표시줄: 이 파일이 돌았는지, 클립보드 읽기 지원·보안 연결 여부, 최근 오류를 보여 준다(사용자가 화면만 보고 원인을 알릴 수 있게)
+function productDiag(err){const d=$('productDiag');if(!d)return;const clip=!!(navigator.clipboard&&navigator.clipboard.readText);d.textContent=`가져오기 준비됨 · v${typeof APP_VERSION!=='undefined'?APP_VERSION:'?'} · 클립보드 읽기 ${clip?'지원':'미지원'} · 보안 연결 ${window.isSecureContext?'예':'아니오'}${err?` · 최근 오류: ${String(err).slice(0,160)}`:''}`}
+window.addEventListener('error',e=>{if(/wardrobe-import|product/i.test(String(e.filename||'')+String(e.message||'')))productDiag(e.message)});
+window.addEventListener('unhandledrejection',e=>{const m=String(e.reason?.message||e.reason||'');if(m)productDiag(m)});
 function initWardrobeExtras(){
+  productDiag();
   const det=$('shortcutCode')&&$('shortcutCode').closest('details');if(det)det.addEventListener('toggle',()=>{if(det.open)prefetchShortcutCode()});
   $('productPhoto').onchange=e=>chooseProductPhoto(e.target.files[0]);
-  $('productPayload').addEventListener('paste',e=>{const t=e.clipboardData&&e.clipboardData.getData('text'),s=String(t||'').trim();if(!s||productBusy)return;if(s.startsWith('{')||looksHTML(s)||looksB64(s)){e.preventDefault();previewProduct(t)}}); // 주소 같은 짧은 글은 칸에 그대로 둔다
+  const box=$('productPayload'),isPkg=s=>s.startsWith('{')||looksHTML(s)||looksB64(s);
+  box.addEventListener('paste',e=>{
+    if(productBusy){$('productStatus').textContent='앞 상품을 준비하는 중입니다. 끝난 뒤 다시 붙여 넣어주세요.';e.preventDefault();return}
+    const t=e.clipboardData&&e.clipboardData.getData('text'),s=String(t||'').trim();
+    if(s&&isPkg(s)){e.preventDefault();previewProduct(t);return} // 주소 같은 짧은 글은 칸에 그대로 둔다
+    $('productStatus').textContent=s?`붙여 넣은 글 ${s.length}자를 확인합니다…`:'붙여 넣은 글을 확인합니다…';
+  });
+  // iPhone에서 붙여넣기 이벤트가 글을 주지 않을 때: 칸에 들어간 글로 판단한다
+  box.addEventListener('input',()=>{const s=box.value.trim();if(!s||productBusy)return;if(isPkg(s)){const t=box.value;box.value='';previewProduct(t)}else $('productStatus').textContent=`붙여 넣은 글 ${s.length}자 · 상품 미리보기를 누르세요.`});
   $('carePhoto').onchange=e=>chooseCarePhoto(e.target.files[0]);
   $('productFile').onchange=async e=>{
     if(productBusy)return;const f=e.target.files[0];if(!f)return;
