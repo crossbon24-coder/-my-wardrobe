@@ -20,7 +20,7 @@
 | 버전 | 사용자에게 배포되는 기능 변경은 APP_VERSION·화면 표시·version.json을 함께 올린다. 문서만 바꿀 때는 올리지 않는다 |
 | 개인 자료 | 사용자의 옷 사진·백업 JSON·진단 원자료는 커밋하지 않는다 |
 | 마무리 | 변경 파일·검증 결과·미확인 사항을 PROJECT.md 현황과 이 파일 5절에 적는다. 커밋 뒤에는 push까지 해서 git status가 origin과 같은지 확인한다(못 하면 5절에 적음) |
-| 검사 | 앱 코드를 바꾸면 두 검사를 모두 돌린다: node tests/regression.cjs, node tests/outfits.cjs. push하면 GitHub Actions(.github/workflows/tests.yml)가 같은 두 검사를 자동으로 돌리므로, 자기 환경에서 못 돌렸으면 push 뒤 Actions 결과(초록/빨강)를 확인하고 5절에 적는다. 빨강이면 바로 고치거나 되돌린다 |
+| 검사 | 앱 코드를 바꾸면 세 검사를 모두 돌린다: node tests/regression.cjs, node tests/outfits.cjs, node tests/features.cjs. push하면 GitHub Actions(.github/workflows/tests.yml)가 같은 두 검사를 자동으로 돌리므로, 자기 환경에서 못 돌렸으면 push 뒤 Actions 결과(초록/빨강)를 확인하고 5절에 적는다. 빨강이면 바로 고치거나 되돌린다 |
 | 개인정보 | 문서·코드·커밋에 사용자 실명과 회사 메일을 쓰지 않는다. 이 저장소의 커밋 작성자는 GitHub 계정(crossbon24-coder)과 noreply 메일로 한다 |
 
 ## 3. outfits 레코드 계약(Claude 제안, GPT 확인 요청)
@@ -64,18 +64,23 @@
 
 | 2026-09-27 | Claude | 사용자 요청으로 전체 검토(7개 관점, 발견마다 두 검증자). 확인 79건. Claude 담당과 공동 항목의 Claude 쪽을 v4.3으로 반영(outfits.js, tests/outfits.cjs 20개 신설, .gitignore, 버전 표기). index.html은 버전 표기만 바꿈. 3절 계약에 bag 칸·같은 날 집계·끊긴 참조·archived를 추가. GPT에게 7절 표 순서대로 요청. 9월 7일 v4.1/v4.2 index.html 긴급 수정 검토 요청은 아직 응답 없음 |
 | 2026-09-27 | Claude | 사용자 결정 3건 반영: v31.html·category-v356.js 삭제, 실명 제거·커밋 작성자 noreply로 변경, GitHub Actions(tests.yml) 추가. Playwright 기본 Chromium(CI와 같은 조건)으로 regression 37개·outfits 20개 통과 확인. 앱 코드는 바뀌지 않아 버전은 4.3 유지 |
+| 2026-09-28 | Claude | 사용자 결정: 7절 GPT 요청을 Claude가 맡는다. 1차 묶음 v4.4 — 저장 안내·persist·마지막 백업, 백업 사진 확인·조각 Blob·iPhone 공유 시트·현지 날짜, 옷 보관/삭제(한 트랜잭션), 사진 바꾸기, 수정 창 바깥 탭·업데이트 전 확인, 옷장 오늘 입음 하루 한 번·되돌리기, 사진 추가 이어 붙이기·중복 건너뛰기·목록 비우기, 입력칸 16px, 뒤로 가기 캐시 URL 유지, 날짜 넘김 다시 그리기. 변경 후 4관점 반박 검토 확인 16건 반영. 검사 regression 37·outfits 20·features 28 통과. regression.cjs는 'Unavailable CDN' 검사 앞 batch=[] 한 줄만 바꿈(사진 추가 의미 변경 때문) |
 
 ## 6. 현재 작업 중
 
 | 작업자 | 파일 | 내용 | 시작 | 상태 |
 |---|---|---|---|---|
-진행 중인 작업만 적고, 끝나면 지운다(끝난 기록은 5절). 지금 진행 중인 작업은 없다.
+진행 중인 작업만 적고, 끝나면 지운다(끝난 기록은 5절).
+
+| 작업자 | 파일 | 내용 | 시작 | 상태 |
+|---|---|---|---|---|
+| Claude | index.html, outfits.js, tests/ | 사용자 결정(2026-09-28)으로 7절 GPT 요청 목록을 Claude가 맡음. 1차(1~9번) 완료(v4.4), 2차(10~12번)·3차(13~15번) 남음 | 2026-09-28 | 진행 중. GPT는 사용자가 다시 지시할 때까지 이 저장소를 수정하지 않는다 |
 
 ## 7. 2026-09-27 전체 검토 — 남은 일과 담당
 
 검토 결과 원자료(발견별 근거·재현 수치)는 Claude 쪽 작업 기록에 있고, 요약만 적는다. id는 검토 때 붙인 번호다. Claude 담당·공동 항목의 Claude 쪽은 v4.3에서 반영했다(PROJECT.md v4.3 절).
 
-GPT에게 요청(우선순위 순)
+GPT에게 요청(우선순위 순) — 2026-09-28부터 Claude가 처리 중. 1~9번은 v4.4에서 반영(8번의 등록 목록 보존 critic-2는 남음)
 
 | 순서 | id | 내용 | 비고 |
 |---|---|---|---|
