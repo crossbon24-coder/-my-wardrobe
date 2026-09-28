@@ -211,14 +211,20 @@ async function previewProduct(text){
   }catch(e){$('productStatus').textContent=e.message;productDraft=null;$('productReview').hidden=true}
   finally{productBusy=false;$('productPreviewBtn').disabled=false;$('productQueueBtn').disabled=false;pruneURLs()}
 }
-// '붙여넣기' 버튼: 입력칸을 거치지 않고 클립보드를 바로 읽어 미리보기(iPhone은 '붙여넣기' 확인을 한 번 묻는다).
-// 클립보드 읽기는 누른 직후 곧바로 불러야 해서 다른 일보다 먼저 부른다. 옷장 첫 화면에서 눌러도 옷 등록 화면으로 넘어간다
+// '붙여넣기' 버튼: 입력칸을 거치지 않고 클립보드를 바로 읽어 미리보기. iPhone은 누른 자리에 '붙여넣기' 확인 말풍선을 띄우고, 그것을 눌러야 읽힌다.
+// 클립보드 읽기는 누른 직후 곧바로 부르고, 말풍선이 닫히지 않게 읽기가 끝날 때까지 화면을 바꾸거나 스크롤하지 않는다.
+// 누르자마자 안내를 띄우고, 6초가 지나도 읽히지 않으면 '직접 붙여넣기'(입력칸 길게 누르기)로 안내한다
+function openProductCard(){if(!$('add').classList.contains('active')&&typeof goAdd==='function')goAdd();const card=$('productCard');if(card){card.open=true;card.scrollIntoView({block:'start'})}}
+function pasteByHand(){openProductCard();$('productStatus').textContent='아래 칸을 길게 눌러 붙여넣기를 누르세요. 붙여 넣으면 바로 미리보기가 시작됩니다.';$('productPayload').focus()}
 function pasteProduct(){
+  if(productBusy){if(typeof toast==='function')toast('앞 상품을 준비하는 중입니다');return Promise.resolve()}
   const read=navigator.clipboard&&navigator.clipboard.readText?navigator.clipboard.readText():Promise.reject(new Error('unsupported'));
-  if(!$('add').classList.contains('active')&&typeof goAdd==='function')goAdd();
-  const card=$('productCard');if(card){card.open=true;card.scrollIntoView({block:'start'})}
-  return read.then(t=>{if(!String(t||'').trim()){$('productStatus').textContent='클립보드가 비어 있습니다. 쇼핑몰에서 단축어를 먼저 실행해주세요.';return}return previewProduct(t)},
-    ()=>{$('productStatus').textContent='붙여넣기가 허용되지 않았습니다. 아래 칸을 길게 눌러 붙여 넣어주세요(붙여 넣으면 바로 미리보기가 시작됩니다).';$('productPayload').focus()});
+  const hint="화면에 뜬 '붙여넣기'를 한 번 더 눌러주세요";
+  if(typeof toast==='function')toast(hint);if($('add').classList.contains('active'))$('productStatus').textContent=hint+'.';
+  let done=false;const slow=setTimeout(()=>{if(!done&&typeof toast==='function')toast("'붙여넣기'가 안 보이면 칸에 직접 붙여 넣으세요",'직접 붙여넣기',pasteByHand)},6000);
+  const finish=()=>{done=true;clearTimeout(slow);const t=$('appToast');if(t)t.classList.remove('show')};
+  return read.then(t=>{finish();openProductCard();if(!String(t||'').trim()){$('productStatus').textContent='클립보드가 비어 있습니다. 쇼핑몰에서 단축어를 먼저 실행해주세요.';return}return previewProduct(t)},
+    ()=>{finish();pasteByHand();$('productStatus').textContent='붙여넣기가 허용되지 않았습니다. 아래 칸을 길게 눌러 붙여 넣어주세요(붙여 넣으면 바로 미리보기가 시작됩니다).'});
 }
 function renderProductPhoto(){
   const im=$('productImage');im.hidden=!productDraft?.image;
