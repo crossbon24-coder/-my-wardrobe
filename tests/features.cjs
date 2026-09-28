@@ -1056,21 +1056,48 @@ async function check(name, fn, opts) {
     assert.deepEqual([r.pasted, r.prevented], ['짧은 버전 셔츠', true]);
   });
 
-  await check('Paste button: shows a hint at once and keeps the screen still until the iPhone paste bubble is answered; if nothing comes back in 6 s it offers pasting by hand', async page => {
+  await check('Paste buttons are narrow enough (≤ 300 pt) that the iPhone paste bubble anchors above the button, with a visible hint; the screen stays put until the bubble is answered; a dismissed bubble leads to pasting by hand', async page => {
     const r = await page.evaluate(async () => {
+      const w = id => document.getElementById(id).getBoundingClientRect().width, hint = id => document.getElementById(id).nextElementSibling?.textContent || '';
+      const sizes = { closet: w('closetPasteBtn'), closetHint: hint('closetPasteBtn') };
       let release; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { readText: () => new Promise(res => { release = res; }) } });
       const g = window.goto; delete window.goto;
-      document.getElementById('closetPasteBtn').click();
-      const hint = toastText(), still = document.querySelector('.page.active').id;
-      await sleep(6300); const slow = toastText(), hasAction = !!document.querySelector('#appToast button');
+      document.getElementById('closetPasteBtn').click(); const still = document.querySelector('.page.active').id;
       release(JSON.stringify({ app: 'my-wardrobe-product', version: 1, product: { name: '늦게 온 셔츠' } }));
       for (let i = 0; i < 60 && !productDraft; i++) await sleep(50);
+      const after = document.querySelector('.page.active').id, name = productDraft?.product.name;
+      sizes.card = w('productPasteBtn'); sizes.cardHint = hint('productPasteBtn');
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { readText: () => Promise.reject(Object.assign(new Error('x'), { name: 'NotAllowedError' })) } });
+      window.goto = g; goto('옷장'); delete window.goto; document.getElementById('closetPasteBtn').click(); await sleep(100);
+      const denied = { page: document.querySelector('.page.active').id, status: document.getElementById('productStatus').textContent, focus: document.activeElement?.id, diag: document.getElementById('productDiag').textContent };
       window.goto = g;
-      return { hint, still, slow, hasAction, after: document.querySelector('.page.active').id, name: productDraft?.product.name };
+      return { sizes, still, after, name, denied };
     });
-    assert.match(r.hint, /붙여넣기/); assert.equal(r.still, 'closet'); assert.match(r.slow, /직접 붙여/); assert.equal(r.hasAction, true);
-    assert.deepEqual([r.after, r.name], ['add', '늦게 온 셔츠']);
+    assert.ok(r.sizes.closet > 0 && r.sizes.closet <= 300 && r.sizes.card > 0 && r.sizes.card <= 300, JSON.stringify(r.sizes));
+    assert.match(r.sizes.closetHint, /붙여넣기/); assert.match(r.sizes.cardHint, /붙여넣기/);
+    assert.deepEqual([r.still, r.after, r.name], ['closet', 'add', '늦게 온 셔츠']);
+    assert.equal(r.denied.page, 'add'); assert.match(r.denied.status, /길게 눌러/); assert.equal(r.denied.focus, 'productPayload'); assert.match(r.denied.diag, /가져오기 준비됨.*NotAllowedError/);
   });
+
+  await check('Status line shows the import file is running (and says so when it is not); text pasted into the box previews even when the paste event carries no data', async page => {
+    const r = await page.evaluate(async () => {
+      const diag = document.getElementById('productDiag').textContent;
+      goto('옷 등록'); document.getElementById('productCard').open = true;
+      const box = document.getElementById('productPayload');
+      box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: new DataTransfer(), bubbles: true, cancelable: true }));
+      box.value = JSON.stringify({ app: 'my-wardrobe-product', version: 1, product: { name: '입력칸 셔츠' } }); box.dispatchEvent(new Event('input', { bubbles: true }));
+      for (let i = 0; i < 60 && !productDraft; i++) await sleep(50);
+      const name = productDraft?.product.name, cleared = box.value === '';
+      box.value = 'https'; box.dispatchEvent(new Event('input', { bubbles: true }));
+      return { diag, name, cleared, hint: document.getElementById('productStatus').textContent };
+    });
+    assert.match(r.diag, /가져오기 준비됨 · v[\d.]+ · 클립보드 읽기/); assert.deepEqual([r.name, r.cleared], ['입력칸 셔츠', true]); assert.match(r.hint, /5자 · 상품 미리보기를 누르세요/);
+  });
+
+  await check('If wardrobe-import.js does not run, the product card says so instead of staying silent', async page => {
+    const r = await page.evaluate(() => document.getElementById('productDiag').textContent);
+    assert.match(r, /불러오지 못했습니다/);
+  }, { block: ['/wardrobe-import.js'] });
 
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {
     const r = await page.evaluate(async () => {

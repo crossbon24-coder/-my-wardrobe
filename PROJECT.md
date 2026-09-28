@@ -25,6 +25,13 @@
 - 추적값 제거(cleanProductURL, 추출기 url도 같음): utm_*·fbclid·gclid·gbraid·wbraid·gad_source·dclid·msclkid·ttclid·twclid·yclid·igshid·igsh·mc_*·_hs*·_ga·_gl·ref_src·srsltid·af_*·reward_key·shortlink·deep_link_*·is_retargeting·onelink_*·source_caller·NaPm·n_*. pid는 af_*와 함께 있을 때만 뺀다. 주소만 붙여 넣을 때도 지운 주소로 요청한다. 요청은 credentials omit, no-referrer(CORS라 앱 출처는 전달됨 — 안내에 적음).
 - 상품명 색 참고(nameColor): 구매 색상 칸 → 이름 끝의 [색]·(색)·_색·- 색 → 이름 전체 순. 낱말 단위로만 맞추고 라이트·다크·삭스 같은 꾸밈말을 떼고 본다(블루종·삭스·블랙워치·샌드워시·모카신·크림슨은 색 아님). 이름 전체 단계에서는 뜻이 여럿인 낱말(내추럴·크림·샌드·실버·커피 등)을 쓰지 않는다. 두 색으로 읽히거나 구매 색상 칸이 12색 밖이면 비운다. 브랜드 글자는 빼고 본다. 목록에 넣을 때 x.colorSource='name'(사용자 확정 manual과 구분, 진단에 섞이지 않음). 사진 판정·다시 분석은 이 색을 덮지 않고, 사용자가 색을 바꾸면 해제.
 
+### v4.8.1~v4.8.2 — iPhone에서 '붙여넣기'가 반응 없다는 보고
+
+- WebKit 소스 확인: readText()는 사용자가 '붙여넣기' 말풍선에 답할 때까지 페이지 JS와 화면 갱신을 멈추고, 말풍선은 누른 요소 위(요소가 300x120pt보다 크면 손가락 지점)에 뜬다. 다른 곳을 누르거나 메뉴가 닫히면 NotAllowedError. 그래서 readText 뒤에 띄우는 안내는 답한 뒤에야 보인다.
+- 붙여넣기 버튼 폭을 260px로 줄여 말풍선이 버튼 위에 뜨게 하고, 버튼 아래 안내 문구를 늘 보이게 했다. 읽기가 끝날 때까지 화면 전환·스크롤을 하지 않고, 거절되면 입력칸(길게 눌러 붙여넣기)으로 안내한다.
+- 입력칸: paste 이벤트가 글을 주지 않아도 input 이벤트에서 칸의 글로 판단해 미리보기. 상품 정보가 아니면 글자 수와 '상품 미리보기를 누르세요'를 보여 준다.
+- 상태 표시줄(#productDiag): 기본 문구는 '가져오기 기능 파일을 불러오지 못했습니다'이고, wardrobe-import.js가 돌면 '가져오기 준비됨 · 버전 · 클립보드 읽기 지원 여부 · 보안 연결 여부 · 최근 오류'로 바뀐다. 사용자 화면만으로 원인을 가르기 위한 것.
+
 ### 추출기(product-shortcut.js)
 
 - ProductGroup 인정: 묶음 값(name·brand·image·description·offers)을 쓰고, 비었을 때만 첫 변형에서 name·brand·offers를 빌린다. 사이즈·색·설명·사진은 변형에서 빌리지 않는다(첫 사이즈가 '구매 사이즈'로 채워지던 회귀 방지). 코드는 productGroupID(없으면 변형 코드의 앞 네 토막).
