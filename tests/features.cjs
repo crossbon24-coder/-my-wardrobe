@@ -1111,6 +1111,19 @@ async function check(name, fn, opts) {
     assert.match(r.keys, /'모든 키'로 되어 있습니다/); assert.equal(r.values, 'ok:모든 값 셔츠'); assert.match(r.title, /받은 글 \d+자: "울 니트 - 무신사"/);
   });
 
+  await check('Paste button reads text through clipboard.read(); when the clipboard holds no text (empty or a non-text Shortcuts type) it says so with the types seen', async page => {
+    const r = await page.evaluate(async () => {
+      const item = (types, text) => ({ types, getType: async t => new Blob([text], { type: t }) });
+      const set = items => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { read: async () => items, readText: async () => { throw new Error('should use read'); } } });
+      goto('옷 등록');
+      set([item(['text/plain'], JSON.stringify({ app: 'my-wardrobe-product', version: 1, product: { name: 'read 셔츠' } }))]); await pasteProduct(); const ok = productDraft?.product.name;
+      productDraft = null; set([item(['com.apple.shortcuts.dictionary'], '')]); await pasteProduct(); const odd = document.getElementById('productStatus').textContent;
+      set([]); await pasteProduct(); const empty = document.getElementById('productStatus').textContent;
+      return { ok, odd, empty };
+    });
+    assert.equal(r.ok, 'read 셔츠'); assert.match(r.odd, /글이 없습니다.*com\.apple\.shortcuts\.dictionary/); assert.match(r.empty, /'텍스트'\(사전 값 칩\)/);
+  });
+
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {
     const r = await page.evaluate(async () => {
       await basic(); const n = imageURLs.size;

@@ -229,8 +229,11 @@ function openProductCard(){if(!$('add').classList.contains('active')&&typeof goA
 function pasteByHand(msg){openProductCard();$('productStatus').textContent=msg||'아래 칸을 길게 눌러 붙여넣기를 누르세요. 붙여 넣으면 바로 미리보기가 시작됩니다.';$('productPayload').focus()}
 function pasteProduct(){
   if(productBusy){if(typeof toast==='function')toast('앞 상품을 준비하는 중입니다');return Promise.resolve()}
-  const read=navigator.clipboard&&navigator.clipboard.readText?navigator.clipboard.readText():Promise.reject(new Error('unsupported'));
-  return read.then(t=>{openProductCard();if(!String(t||'').trim()){$('productStatus').textContent='클립보드가 비어 있습니다. 쇼핑몰에서 단축어를 먼저 실행해주세요.';return}return previewProduct(t)},
+  // read()로 받으면 클립보드에 든 형식을 알 수 있다(단축어가 글이 아닌 '사전' 형식으로 복사했는지 가릴 수 있게). 없으면 readText()
+  const c=navigator.clipboard,kinds=[];
+  const read=c&&c.read?c.read().then(async items=>{for(const it of items)kinds.push(...it.types);for(const type of ['text/plain','text/uri-list','text/html'])for(const it of items)if(it.types.includes(type))return (await it.getType(type)).text();return ''})
+    :c&&c.readText?c.readText():Promise.reject(new Error('unsupported'));
+  return read.then(t=>{openProductCard();if(!String(t||'').trim()){$('productStatus').textContent="클립보드에 글이 없습니다. 단축어 끝이 '텍스트'(사전 값 칩) → '클립보드에 복사'(입력: 텍스트)인지 확인해주세요."+(kinds.length?` (클립보드 형식: ${[...new Set(kinds)].join(', ')})`:'');productDiag(kinds.length?'글 아닌 형식: '+[...new Set(kinds)].join(', '):'클립보드 비어 있음');return}return previewProduct(t)},
     e=>{productDiag(e&&e.name?e.name:'');pasteByHand("'붙여넣기' 말풍선이 닫혔습니다. 버튼을 다시 누르고 버튼 위의 작은 '붙여넣기'를 누르거나, 아래 칸을 길게 눌러 붙여 넣어주세요.")});
 }
 function renderProductPhoto(){
