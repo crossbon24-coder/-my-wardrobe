@@ -930,6 +930,132 @@ async function check(name, fn, opts) {
     assert.deepEqual([r.same21, r.same23], [true, false]);
   });
 
+  await check('Shop import: the paste button reads the clipboard straight into a preview (also from the closet tab), without drawing the long text in the box', async page => {
+    const r = await page.evaluate(async () => {
+      const img = await b64(await jpeg('#246', 120));
+      const pkg = JSON.stringify({ metadata: JSON.stringify({ app: 'my-wardrobe-product', version: 1, product: { name: '울 니트 - 사이즈 & 후기 | 무신사', brand: '테스트', listedPrice: '39,900' } }), imageBase64: img.split(',')[1] });
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { readText: async () => pkg, writeText: async () => {} } });
+      const g = window.goto; delete window.goto; document.getElementById('closetPasteBtn').click(); window.goto = g; // 앱에는 goto가 없다(검사용 도우미)
+      for (let i = 0; i < 100 && !productDraft; i++) await sleep(50);
+      const onAdd = document.getElementById('add').classList.contains('active'), open = document.getElementById('productCard').open;
+      return { onAdd, open, box: document.getElementById('productPayload').value, name: document.getElementById('productName').value, price: productDraft.product.listedPrice, photo: !!productDraft.image };
+    });
+    assert.deepEqual(r, { onAdd: true, open: true, box: '', name: '울 니트', price: '39900', photo: true });
+  });
+
+  await check('Shop import recovers common Shortcut mistakes: line breaks inside the photo text; a broken photo text falls back to the photo address; wrong server content-type is sniffed', async page => {
+    const port = server.address().port, jpg = readFileSync(join(__dirname, '..', 'icon-192.png'));
+    await page.route(`http://127.0.0.1:${port}/fake-shop/img.jpg`, route => route.fulfill({ status: 200, headers: { 'content-type': 'application/x-www-form-urlencoded', 'access-control-allow-origin': '*' }, body: jpg }));
+    const r = await page.evaluate(async port => {
+      const img = await b64(await jpeg('#246', 120)), part = img.split(',')[1];
+      const meta = JSON.stringify({ app: 'my-wardrobe-product', version: 1, product: { name: '셔츠' }, imageUrl: `http://127.0.0.1:${port}/fake-shop/img.jpg` });
+      const wrapped = '{"metadata": ' + JSON.stringify(meta) + ', "imageBase64": "' + part.slice(0, 40) + '\n' + part.slice(40) + '"}';
+      goto('옷 등록'); await previewProduct(wrapped); const a = { photo: !!productDraft?.image, status: document.getElementById('productStatus').textContent };
+      await previewProduct(JSON.stringify({ metadata: meta, imageBase64: '@@깨진사진@@' })); const b = { photo: !!productDraft?.image, name: productDraft?.product.name };
+      await previewProduct('{"metadata": "{"app":"my-wardrobe-product"}"}'); const c = document.getElementById('productStatus').textContent;
+      return { a, b, c };
+    }, port);
+    assert.equal(r.a.photo, true, r.a.status); assert.deepEqual(r.b, { photo: true, name: '셔츠' }); assert.match(r.c, /따옴표/);
+  });
+
+  await check('Shop import accepts a pasted product page HTML (app share path) and a bare address the shop allows; a blocked address explains the Safari route', async page => {
+    const port = server.address().port, o = `http://127.0.0.1:${port}`;
+    const html = `<!doctype html><html><head><meta property="og:title" content="브이넥 니트 - 감도 깊은 취향 셀렉트샵 29CM"><meta property="og:image" content="/fake-shop/img.jpg"><link rel="canonical" href="${o}/fake-shop/products/1"><script type="application/ld+json">{"@type":"Product","name":"브이넥 니트","brand":{"name":"브랜드A"},"offers":{"price":"239000","priceCurrency":"KRW"}}</script></head><body>본문</body></html>`;
+    const jpg = readFileSync(join(__dirname, '..', 'icon-192.png'));
+    await page.route(`${o}/fake-shop/img.jpg`, route => route.fulfill({ status: 200, headers: { 'content-type': 'image/png' }, body: jpg }));
+    await page.route(`${o}/fake-shop/products/1`, route => route.fulfill({ status: 200, headers: { 'content-type': 'text/html; charset=utf-8' }, body: html }));
+    await page.route(`${o}/fake-shop/blocked`, route => route.abort());
+    const r = await page.evaluate(async ([html, o]) => {
+      goto('옷 등록'); await previewProduct(html);
+      const a = { name: productDraft?.product.name, brand: productDraft?.product.brand, url: productDraft?.product.url, price: productDraft?.product.listedPrice, photo: !!productDraft?.image };
+      await previewProduct(`${o}/fake-shop/products/1`); const b = { name: productDraft?.product.name, photo: !!productDraft?.image };
+      await previewProduct(`${o}/fake-shop/blocked`); const c = document.getElementById('productStatus').textContent;
+      return { a, b, c };
+    }, [html, o]);
+    assert.deepEqual(r.a, { name: '브이넥 니트', brand: '브랜드A', url: `${o}/fake-shop/products/1`, price: '239000', photo: true });
+    assert.deepEqual(r.b, { name: '브이넥 니트', photo: true });
+    assert.match(r.c, /Safari에서 상품 페이지를 열고/);
+  });
+
+  await check('Extractor reads Cafe24 ProductGroup/hasVariant (brand, code) and the sale price; the app shortens the Cafe24 code and prefers the Cafe24 photo server and Musinsa large photos', async (page, context) => {
+    const p = await context.newPage(), code = readFileSync(join(root, 'product-shortcut.js'), 'utf8'), o = `http://127.0.0.1:${server.address().port}`;
+    await p.goto(`${o}/shortcut-help.html`);
+    const out = await p.evaluate(code => new Promise(resolve => {
+      document.head.innerHTML = '<meta property="og:title" content="CANVAS WORK PANTS (OLIVE)"><meta property="og:image" content="https://m.lokward.com/web/product/big/202605/abc.jpeg"><meta property="product:price:amount" content="64000"><meta property="product:sale_price:amount" content="58900"><meta property="product:sale_price:currency" content="KRW"><link rel="canonical" href="' + location.href + '">';
+      const s = document.createElement('script'); s.type = 'application/ld+json';
+      s.textContent = JSON.stringify({ '@context': 'https://schema.org', '@type': 'ProductGroup', '@id': location.href, name: 'CANVAS WORK PANTS (OLIVE)', productGroupID: 'cafe24_lokward1_1_1118', hasVariant: [{ '@type': 'Product', name: 'CANVAS WORK PANTS (OLIVE) M', brand: { '@type': 'Brand', name: 'LOKWARD' }, sku: 'cafe24_lokward1_1_1118_P0000BRA000A', size: 'M', offers: { '@type': 'Offer', price: 64000, priceCurrency: 'KRW' } }] });
+      document.head.append(s); window.completion = r => resolve(r); (0, eval)(code);
+    }), code);
+    await p.close();
+    const meta = JSON.parse(out.metadata).product;
+    assert.deepEqual([meta.name, meta.brand, meta.sku, meta.size, meta.listedPrice, meta.currency], ['CANVAS WORK PANTS (OLIVE)', 'LOKWARD', 'cafe24_lokward1_1_1118', '', '58900', 'KRW']);
+    const r = await page.evaluate(meta => {
+      const d = parseProductPackage(JSON.stringify({ app: 'my-wardrobe-product', version: 1, product: meta, imageUrl: 'https://m.lokward.com/web/product/big/202605/abc.jpeg' }));
+      return { sku: d.product.sku, mall: d.mall, lok: imageCandidates(d.imageUrl, d.mall), ms: imageCandidates('https://image.msscdn.net/images/goods_img/20240101/2093486/2093486_1_500.jpg', '') };
+    }, meta);
+    assert.deepEqual(r.lok, ['https://cafe24img.poxo.com/lokward1/web/product/big/202605/abc.jpeg', 'https://m.lokward.com/web/product/big/202605/abc.jpeg']);
+    assert.deepEqual([r.sku, r.mall], ['1118', 'lokward1']);
+    assert.deepEqual(r.ms, ['https://image.msscdn.net/images/goods_img/20240101/2093486/2093486_1_big.jpg', 'https://image.msscdn.net/images/goods_img/20240101/2093486/2093486_1_500.jpg']);
+  });
+
+  await check('Product name color: bracket/underscore/dash color words map to the 12 colors (brand words ignored, two colors abstain); queued item uses it; Base64 page HTML (app-share Shortcut) previews', async page => {
+    const r = await page.evaluate(async () => {
+      const names = ['오버사이즈 옥스포드 셔츠 [화이트]', '라이트 헌팅 자켓 (차콜)', '옥스포드 버튼다운 셔츠_네이비', 'CANVAS WORK PANTS (OLIVE)', 'Kyale henry knit - navy', '오프화이트 니트', '체크 셔츠 네이비/그린', '삭스블루 셔츠',
+        '스웨이드 블루종', '크루 삭스 3팩', '내추럴 핏 셔츠 블랙', '블랙워치 체크 셔츠', '샌드워시 치노 팬츠', '모카신 로퍼', '크림슨 니트'];
+      const field = [nameColor({ name: '울 니트 (네이비)', color: '레드' }) || '-', nameColor({ name: '셔츠', color: '밝은회색(실버)' }) || '-'];
+      const colors = names.map(n => nameColor({ name: n }) || '-');
+      const brandIgnored = nameColor({ name: '블랙야크 플리스 자켓', brand: '블랙야크' }) || '-';
+      const img = await b64(await jpeg('#777', 120));
+      goto('옷 등록'); await previewProduct(JSON.stringify({ metadata: JSON.stringify({ app: 'my-wardrobe-product', version: 1, product: { name: '무신사 스탠다드(MUSINSA STANDARD) 옥스포드 셔츠 [화이트] - 사이즈 & 후기 | 무신사', brand: '무신사 스탠다드' } }), imageBase64: img.split(',')[1] }));
+      const shown = document.getElementById('productName').value; await queueProduct(); const q = batch[batch.length - 1];
+      applyColorResult(q, { name: '검정', reliable: true, rgb: [0, 0, 0] }); // 다시 분석해도 상품명 색은 그대로
+      const queued = { color: q.color, manual: !!q.manual.color, source: q.colorSource, cat: q.category + '·' + q.type }; batch.length = 0; renderQueue();
+      const html = '<!doctype html><html><head><meta property="og:title" content="브이넥 니트 - navy - 감도 깊은 취향 셀렉트샵 29CM"><link rel="canonical" href="https://www.29cm.co.kr/products/1"></head><body></body></html>';
+      const enc = btoa(String.fromCharCode(...new TextEncoder().encode(html)));
+      await previewProduct(enc); const b64name = productDraft?.product.name, b64url = productDraft?.product.url;
+      return { colors, field, brandIgnored, shown, queued, b64name, b64url };
+    });
+    assert.deepEqual(r.colors, ['흰색', '회색', '네이비', '카키/올리브', '네이비', '아이보리/크림', '-', '블루', '-', '-', '검정', '-', '-', '-', '-']);
+    assert.deepEqual(r.field, ['-', '회색']);
+    assert.equal(r.brandIgnored, '-');
+    assert.equal(r.shown, '옥스포드 셔츠 [화이트]');
+    assert.deepEqual(r.queued, { color: '흰색', manual: false, source: 'name', cat: '상의·셔츠' });
+    assert.deepEqual([r.b64name, r.b64url], ['브이넥 니트 - navy', 'https://www.29cm.co.kr/products/1']);
+  });
+
+  await check('Pasted page HTML without canonical/og:url takes the product address from JSON-LD @id (Pottery); a share-link landing page is recognised and explained', async page => {
+    const r = await page.evaluate(async () => {
+      goto('옷 등록');
+      const html = '<!doctype html><html><head><meta property="og:title" content="옥스포드 버튼다운 셔츠_네이비"><meta property="og:image" content="https://cafe24img.poxo.com/pottery33300/web/product/big/202608/x.jpg"><script type="application/ld+json">{"@type":"ProductGroup","@id":"https://ptry.co.kr/product/oxford/5201/","name":"옥스포드 버튼다운 셔츠_네이비","hasVariant":[{"@type":"Product","brand":{"name":"POTTERY"},"sku":"cafe24_pottery33300_1_5201_P0000HSB000A"}]}</script></head><body></body></html>';
+      let a; try { const d = await productFromText(html); a = { url: d.product.url, brand: d.product.brand, img: d.imageUrl, mall: d.mall }; } catch (e) { a = e.message; }
+      await previewProduct('<!doctype html><html><head><title>Launching App...</title></head><body><script>var store_link="https://www.musinsa.com/products/1";</script></body></html>');
+      return { a, share: document.getElementById('productStatus').textContent };
+    });
+    assert.deepEqual(r.a, { url: 'https://ptry.co.kr/product/oxford/5201/', brand: 'POTTERY', img: 'https://cafe24img.poxo.com/pottery33300/web/product/big/202608/x.jpg', mall: 'pottery33300' });
+    assert.match(r.share, /공유 링크 안내 페이지/);
+  });
+
+  await check('Shop import hygiene: tracking values (AppsFlyer share, Naver/Google ads) are dropped but product numbers kept; EUC-KR pages decode; a store landing title is refused; a short JSON pasted into the box previews at once', async page => {
+    const port = server.address().port, o = `http://127.0.0.1:${port}`;
+    const euc = Buffer.concat([Buffer.from('<!doctype html><html><head><meta charset="euc-kr"><meta property="og:title" content="'), Buffer.from([0xB0, 0xA1, 0xB3, 0xAA, 0xB4, 0xD9]), Buffer.from(` shirt"><link rel="canonical" href="${o}/fake-shop/euc"></head><body></body></html>`)]);
+    await page.route(`${o}/fake-shop/euc`, route => route.fulfill({ status: 200, headers: { 'content-type': 'text/html; charset=euc-kr' }, body: euc }));
+    const r = await page.evaluate(async o => {
+      const urls = [cleanProductURL('https://www.29cm.co.kr/products/3738438?reward_key=RK_1&af_dp=x&shortlink=abc&pid=29cm_pdp_share&utm_source=s&deep_link_value=y'),
+        cleanProductURL('https://ptry.co.kr/product/detail.html?product_no=5201&cate_no=944&NaPm=ct%3D1&n_query=%EB%82%A8%EC%9E%90&n_rank=3&_ga=2.1&gclid=z'),
+        cleanProductURL('https://shop.example/item?pid=77&color=navy')];
+      goto('옷 등록'); await previewProduct(`${o}/fake-shop/euc`); const euc = productDraft?.product.name || document.getElementById('productStatus').textContent;
+      let landing; try { parseProductPackage(JSON.stringify({ app: 'my-wardrobe-product', version: 1, product: { name: '온라인 패션 스토어 무신사' } })); landing = 'ok'; } catch (e) { landing = e.message; }
+      productDraft = null; const json = JSON.stringify({ app: 'my-wardrobe-product', version: 1, product: { name: '짧은 버전 셔츠' } });
+      const dt = new DataTransfer(); dt.setData('text/plain', json); const box = document.getElementById('productPayload'); box.value = '';
+      const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }); box.dispatchEvent(ev);
+      for (let i = 0; i < 60 && !productDraft; i++) await sleep(50);
+      return { urls, euc, landing, pasted: productDraft?.product.name, prevented: ev.defaultPrevented };
+    }, o);
+    assert.deepEqual(r.urls, ['https://www.29cm.co.kr/products/3738438', 'https://ptry.co.kr/product/detail.html?product_no=5201&cate_no=944', 'https://shop.example/item?pid=77&color=navy']);
+    assert.equal(r.euc, '가나다 shirt'); assert.match(r.landing, /공유 링크 안내 페이지/);
+    assert.deepEqual([r.pasted, r.prevented], ['짧은 버전 셔츠', true]);
+  });
+
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {
     const r = await page.evaluate(async () => {
       await basic(); const n = imageURLs.size;
