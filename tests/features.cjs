@@ -1056,6 +1056,22 @@ async function check(name, fn, opts) {
     assert.deepEqual([r.pasted, r.prevented], ['짧은 버전 셔츠', true]);
   });
 
+  await check('Paste button: shows a hint at once and keeps the screen still until the iPhone paste bubble is answered; if nothing comes back in 6 s it offers pasting by hand', async page => {
+    const r = await page.evaluate(async () => {
+      let release; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { readText: () => new Promise(res => { release = res; }) } });
+      const g = window.goto; delete window.goto;
+      document.getElementById('closetPasteBtn').click();
+      const hint = toastText(), still = document.querySelector('.page.active').id;
+      await sleep(6300); const slow = toastText(), hasAction = !!document.querySelector('#appToast button');
+      release(JSON.stringify({ app: 'my-wardrobe-product', version: 1, product: { name: '늦게 온 셔츠' } }));
+      for (let i = 0; i < 60 && !productDraft; i++) await sleep(50);
+      window.goto = g;
+      return { hint, still, slow, hasAction, after: document.querySelector('.page.active').id, name: productDraft?.product.name };
+    });
+    assert.match(r.hint, /붙여넣기/); assert.equal(r.still, 'closet'); assert.match(r.slow, /직접 붙여/); assert.equal(r.hasAction, true);
+    assert.deepEqual([r.after, r.name], ['add', '늦게 온 셔츠']);
+  });
+
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {
     const r = await page.evaluate(async () => {
       await basic(); const n = imageURLs.size;
