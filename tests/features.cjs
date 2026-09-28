@@ -110,10 +110,10 @@ async function check(name, fn, opts) {
       closeEdit(); const afterCancel = (await clothesDB()).find(c => c.id === 't1').image.size;
       openEdit('t1'); await chooseEditPhoto(big); await saveEdit();
       const rec = (await clothesDB()).find(c => c.id === 't1'), shown = clothes.find(c => c.id === 't1');
-      const loads = await new Promise(res => { const im = new Image(); im.onload = () => res(im.naturalWidth); im.onerror = () => res(0); im.src = url(shown.image); });
+      const loads = await new Promise(res => { const im = new Image(); im.onload = () => res(im.naturalWidth >= 150 && im.naturalWidth <= 300); im.onerror = () => res(false); im.src = url(shown.image); }); // v4.7부터 단색 둘레는 여백을 자른다
       return { partialShown, preview, unchanged: afterCancel === before, changed: rec.image.size !== before, partial: rec.partial, wearCount: rec.wearCount, shownSize: shown.image.size === rec.image.size, loads, toast: toastText() };
     });
-    assert.deepEqual(r, { partialShown: true, preview: true, unchanged: true, changed: true, partial: false, wearCount: 7, shownSize: true, loads: 300, toast: '사진을 바꿨습니다' });
+    assert.deepEqual(r, { partialShown: true, preview: true, unchanged: true, changed: true, partial: false, wearCount: 7, shownSize: true, loads: true, toast: '사진을 바꿨습니다' });
   });
 
   await check('Edit sheet backdrop tap asks before discarding changes; unchanged sheet closes silently', async page => {
@@ -788,6 +788,147 @@ async function check(name, fn, opts) {
     assert.deepEqual({ ...r, withDetails: undefined }, { opened: true, memo: '옥스포드 셔츠', details: false, closedAfterSave: true, closed: true, plain: 'ok', withDetails: undefined, alerts: [] });
     assert.match(r.withDetails, /새로고침한 뒤 다시 복원/);
   }, { block: ['/wardrobe-import.js'] });
+
+  await check('Formality is two levels (캐주얼/포멀): old 1·2 read as 캐주얼 and 3·4 as 포멀 without rewriting stored values; purpose names drop the formality words', async page => {
+    const r = await page.evaluate(async () => {
+      await seed([{ id: 'a', category: '상의', memo: '옛 스마트캐주얼' }, { id: 'b', category: '하의', memo: '옛 포멀' }, { id: 'c', category: '신발', memo: '옛 비즈니스' }]);
+      await transaction(['clothes'], 'readwrite', tx => { const st = tx.objectStore('clothes'); for (const [id, f] of [['a', 2], ['b', 4], ['c', 3]]) { const q = st.get(id); q.onsuccess = () => st.put({ ...q.result, formality: f }); } });
+      await refresh();
+      const labels = [...new DOMParser().parseFromString(`<select>${opts(FOR, 1)}</select>`, 'text/html').querySelectorAll('option')].map(o => o.textContent);
+      const shown = id => { openEdit(id); const el = document.getElementById('editFormality'), v = el.value, t = el.selectedOptions[0].textContent; return v + t; };
+      const a = shown('a'); window.confirmAnswer = false; const before = confirms.length; OF.addToOutfit(); const askedDirty = confirms.length > before; closeEdit();
+      const b = shown('b'); closeEdit(); const c = shown('c'); closeEdit();
+      openEdit('a'); document.getElementById('editMemo').value = '메모만 수정'; await saveEdit();
+      openEdit('c'); document.getElementById('editFormality').value = '1'; await saveEdit();
+      const db = Object.fromEntries((await clothesDB()).map(x => [x.id, x.formality]));
+      const occ = [...document.getElementById('occasion').options].map(o => o.textContent).join('|');
+      return { labels, a, b, c, askedDirty, db, occ };
+    });
+    assert.deepEqual(r.labels, ['캐주얼', '포멀']);
+    assert.deepEqual([r.a, r.b, r.c], ['1캐주얼', '3포멀', '3포멀']);
+    assert.equal(r.askedDirty, false, 'opening an old 스마트캐주얼 item must not look like an unsaved change');
+    assert.deepEqual(r.db, { a: 2, b: 4, c: 1 });
+    assert.ok(!/스마트|비즈니스/.test(r.occ), r.occ);
+  });
+
+  await check('Color select shows 블루 as 블루·하늘색 (saxe/sky blue go there) while the stored value stays 블루', async page => {
+    const r = await page.evaluate(async () => {
+      await seed([{ id: 'a', category: '상의', memo: '삭스블루 셔츠', color: '블루' }]);
+      openEdit('a'); const el = document.getElementById('editColor'), shown = el.value + '|' + el.selectedOptions[0].textContent; closeEdit();
+      return { shown, list: [...el.options].some(o => o.textContent === '블루'), stored: (await clothesDB())[0].color };
+    });
+    assert.deepEqual(r, { shown: '블루|블루·하늘색', list: false, stored: '블루' });
+  });
+
+  await check('Recommendation scores use the two formality levels (출근 prefers 포멀, 주말 prefers 캐주얼, 데이트 neutral); new photos and shop imports default to 캐주얼', async page => {
+    const r = await page.evaluate(async () => {
+      const s = (f, t) => itemScore({ season: '사계절', formality: f, lastWorn: null }, t, 'normal');
+      goto('옷 등록');
+      const file = new File([await jpeg('#345')], 'x.jpg', { type: 'image/jpeg' }), dt = new DataTransfer(); dt.items.add(file);
+      const input = document.getElementById('photo'); input.files = dt.files; input.dispatchEvent(new Event('change', { bubbles: true }));
+      for (let i = 0; i < 100 && !batch.length; i++) await sleep(50);
+      const photoDefault = batch[0]?.formality; batch.length = 0;
+      return { same12: s(1, 3) === s(2, 3), same34: s(3, 3) === s(4, 3), work: s(3, 3) > s(1, 3), weekend: s(1, 1) > s(3, 1), date: s(1, 2) === s(3, 2), photoDefault,
+        importDefault: /formality:1,memo:p\.name/.test(queueProduct.toString()) };
+    });
+    assert.deepEqual(r, { same12: true, same34: true, work: true, weekend: true, date: true, photoDefault: 1, importDefault: true });
+  });
+
+  await check('Photo margin auto-trim: plain or cut-out backgrounds are trimmed around the garment (keeping a margin); busy backgrounds and label photos are left as they are', async page => {
+    const r = await page.evaluate(async () => {
+      const make = async (w, h, draw, type = 'image/jpeg') => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); draw(x, w, h); return new File([await new Promise(r => c.toBlob(r, type, .92))], 'p', { type }); };
+      const size = async b => { const im = await blobImage(b); return [im.naturalWidth, im.naturalHeight]; };
+      const white = await make(400, 300, (x, w, h) => { x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.fillStyle = '#1b2a4a'; x.fillRect(120, 70, 160, 160); });
+      const cut = await make(300, 300, x => { x.fillStyle = '#111'; x.beginPath(); x.arc(150, 150, 60, 0, 7); x.fill(); }, 'image/png');
+      const busy = await make(400, 300, (x, w, h) => { for (let i = 0; i < 400; i++) { x.fillStyle = `hsl(${(i * 37) % 360},60%,${30 + (i * 13) % 50}%)`; x.fillRect((i * 53) % w, (i * 29) % h, 40, 30); } });
+      const w1 = await f2b(white), c1 = await f2b(cut), b1 = await f2b(busy), l1 = await f2b(white, { trim: false });
+      const corner = await (async () => { const im = await blobImage(c1), c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0); return [...c.getContext('2d').getImageData(2, 2, 1, 1).data.slice(0, 3)]; })();
+      return { white: await size(w1), color: (await estimateColor(w1)).name, cut: await size(c1), corner, busy: await size(b1), label: await size(l1) };
+    });
+    assert.ok(r.white[0] >= 195 && r.white[0] <= 215 && r.white[1] >= 195 && r.white[1] <= 215, `white ${r.white}`);
+    assert.equal(r.color, '네이비');
+    assert.ok(r.cut[0] >= 140 && r.cut[0] <= 170, `cut ${r.cut}`); assert.ok(r.corner.every(v => v > 240), `corner ${r.corner}`);
+    assert.deepEqual(r.busy, [400, 300]); assert.deepEqual(r.label, [400, 300]);
+  });
+
+  await check('Auto-trim safety: full-frame garments, low-contrast cream on white and long slacks keep the whole garment; undo restores the untrimmed photo in the list and the edit sheet', async page => {
+    const r = await page.evaluate(async () => {
+      const make = async (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); draw(x, w, h); return new File([await new Promise(r => c.toBlob(r, 'image/jpeg', .92))], 'p.jpg', { type: 'image/jpeg' }); };
+      const size = async b => { const im = await blobImage(b); return [im.naturalWidth, im.naturalHeight]; };
+      const navyFull = await make(900, 1200, (x, w, h) => { x.fillStyle = '#1b2a4a'; x.fillRect(0, 0, w, h); x.fillStyle = '#fff'; x.fillRect(380, 400, 140, 60); });
+      const cream = await make(900, 1200, (x, w, h) => { x.fillStyle = '#fcfcfc'; x.fillRect(0, 0, w, h); x.fillStyle = '#f1ecdf'; x.fillRect(150, 240, 600, 720); x.fillStyle = '#8a6d3b'; x.fillRect(445, 300, 10, 600); });
+      const slacks = await make(900, 1200, (x, w, h) => { x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.fillStyle = '#555'; x.fillRect(330, 60, 240, 1080); });
+      const nf = await size(await f2b(navyFull)), cr = await f2b(cream), crs = await size(cr), sl = await size(await f2b(slacks));
+      // 등록 목록: 자른 사진에는 '자르지 않은 사진으로'가 보이고 누르면 원래 크기로
+      goto('옷 등록'); const white = await make(400, 300, (x, w, h) => { x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.fillStyle = '#1b2a4a'; x.fillRect(120, 70, 160, 160); });
+      const dt = new DataTransfer(); dt.items.add(white); const input = document.getElementById('photo'); input.files = dt.files; input.dispatchEvent(new Event('change', { bubbles: true }));
+      for (let i = 0; i < 100 && !(batch.length && !processing); i++) await sleep(50);
+      const btn = () => [...document.querySelectorAll('#queue button')].find(b => b.textContent === '자르지 않은 사진으로');
+      const listBefore = [await size(batch[0].image), !!btn()]; await untrimPending(0); const listAfter = [await size(batch[0].image), !!btn()]; batch.length = 0; renderQueue();
+      // 수정 창
+      await seed([{ id: 'a', category: '상의', memo: '셔츠' }]); openEdit('a'); await chooseEditPhoto(white);
+      const editBefore = [await size(pendingImage), !document.getElementById('editUntrimBtn').hidden]; await untrimEditPhoto();
+      const editAfter = [await size(pendingImage), !document.getElementById('editUntrimBtn').hidden]; closeEdit();
+      return { nf, crs, sl, listBefore, listAfter, editBefore, editAfter };
+    });
+    assert.deepEqual(r.nf, [900, 1200], 'a full-frame garment must not be trimmed to its logo');
+    assert.ok(r.crs[0] >= 600 * 1.2 && r.crs[1] >= 720 * 1.2, `cream kept ${r.crs}`);
+    assert.ok(r.sl[0] / r.sl[1] >= 0.59, `slacks aspect ${r.sl}`);
+    assert.equal(r.listBefore[1], true); assert.ok(r.listBefore[0][0] < 300); assert.deepEqual(r.listAfter, [[400, 300], false]);
+    assert.equal(r.editBefore[1], true); assert.ok(r.editBefore[0][0] < 300); assert.deepEqual(r.editAfter, [[400, 300], false]);
+  });
+
+  await check('A care-label photo still being prepared is dropped when the sheet is closed and another garment opened (not saved onto it)', async page => {
+    const r = await page.evaluate(async () => {
+      await seed([{ id: 'a', category: '상의', memo: 'A' }, { id: 'b', category: '상의', memo: 'B' }]);
+      const orig = f2b; f2b = async (...a) => { await sleep(500); return orig(...a); };
+      const label = new File([await jpeg('#eee', 200)], 'label.jpg', { type: 'image/jpeg' });
+      openEdit('a'); const job = chooseCarePhoto(label); await sleep(50); closeEdit(); openEdit('b'); await job; f2b = orig;
+      document.getElementById('editMemo').value = 'B 메모'; await saveEdit();
+      const rows = Object.fromEntries((await clothesDB()).map(c => [c.id, !!c.wardrobeDetails?.care?.labelImage]));
+      return rows;
+    });
+    assert.deepEqual(r, { a: false, b: false });
+  });
+
+  await check('Work recommendations stay formal on hot and cold days (no shorts, sandals or padding), and a date prefers a shirt over a hoodie among casual tops', async page => {
+    const r = await page.evaluate(async () => {
+      const spec = [['tf', '상의', '셔츠', '봄/가을', 3], ['tc', '상의', '티셔츠', '여름', 1], ['bf', '하의', '슬랙스', '사계절', 3], ['bc', '하의', '쇼츠', '여름', 1],
+        ['sf', '신발', '구두', '사계절', 3], ['sc', '신발', '샌들', '여름', 1], ['of', '아우터', '코트', '겨울', 3], ['oc', '아우터', '패딩', '겨울', 1]];
+      await seed(spec.map(([id, category, type]) => ({ id, category, type, memo: type })));
+      await transaction(['clothes'], 'readwrite', tx => { const st = tx.objectStore('clothes'); for (const [id, , , season, formality] of spec) { const q = st.get(id); q.onsuccess = () => st.put({ ...q.result, season, formality, color: '회색' }); } });
+      await refresh();
+      const hot = recommendCombos(3, 'hot')[0].slots, cold = recommendCombos(3, 'cold')[0].slots;
+      await seed([{ id: 'h1', category: '상의', type: '후드', memo: '후드' }, { id: 's1', category: '상의', type: '셔츠', memo: '셔츠' }, { id: 'p1', category: '하의', type: '데님', memo: '데님' }]);
+      await transaction(['clothes'], 'readwrite', tx => { const st = tx.objectStore('clothes'); for (const id of ['tf', 'tc', 'bf', 'bc', 'sf', 'sc', 'of', 'oc']) st.delete(id); for (const id of ['h1', 's1', 'p1']) { const q = st.get(id); q.onsuccess = () => st.put({ ...q.result, color: '회색', formality: 1 }); } });
+      await refresh();
+      return { hot: [hot.top, hot.bottom, hot.shoes], cold: [cold.top, cold.bottom, cold.shoes, cold.outer], date: recommendCombos(2, 'normal')[0].slots.top };
+    });
+    assert.deepEqual(r.hot, ['tf', 'bf', 'sf']); assert.deepEqual(r.cold, ['tf', 'bf', 'sf', 'of']); assert.equal(r.date, 's1');
+  });
+
+  await check('Purposes are 주말·데이트·출근/격식 (3); a combo keeps one formality level (no dress shirt + shorts + sandals on a date); merge treats old 2 and new 1 as the same content', async page => {
+    const r = await page.evaluate(async () => {
+      const occ = [...document.getElementById('occasion').options].map(o => o.value + o.textContent);
+      await seed([
+        { id: 'tc', category: '상의', memo: '후드' }, { id: 'tf', category: '상의', memo: '드레스셔츠' },
+        { id: 'bc', category: '하의', memo: '반바지' }, { id: 'bf', category: '하의', memo: '정장바지' },
+        { id: 'sc', category: '신발', memo: '샌들' }, { id: 'sf', category: '신발', memo: '구두' },
+      ]);
+      await transaction(['clothes'], 'readwrite', tx => { const st = tx.objectStore('clothes'); for (const id of ['tc', 'bc', 'sc', 'tf', 'bf', 'sf']) { const q = st.get(id); q.onsuccess = () => st.put({ ...q.result, color: '회색', formality: id.endsWith('f') ? 3 : 1 }); } });
+      await refresh();
+      const lv = id => formalityLevel(clothes.find(c => c.id === id).formality);
+      const combos = recommendCombos(2, 'normal').slice(0, 2).map(c => [c.slots.top, c.slots.bottom, c.slots.shoes]);
+      const coherent = combos.every(ids => new Set(ids.map(lv)).size === 1);
+      const work = recommendCombos(3, 'normal')[0].slots.top, weekend = recommendCombos(1, 'normal')[0].slots.top;
+      const base = { category: '상의', type: '', color: '회색', season: '사계절', memo: '', archived: undefined, partial: undefined, image: null };
+      return { occ, coherent, combos, work, weekend, same21: sameContent({ ...base, formality: 2 }, { ...base, formality: 1 }), same23: sameContent({ ...base, formality: 2 }, { ...base, formality: 3 }) };
+    });
+    assert.deepEqual(r.occ, ['1주말 / 편한 외출', '2데이트', '3출근·격식 있는 자리']);
+    assert.equal(r.coherent, true, JSON.stringify(r.combos));
+    assert.deepEqual([r.work, r.weekend], ['tf', 'tc']);
+    assert.deepEqual([r.same21, r.same23], [true, false]);
+  });
 
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {
     const r = await page.evaluate(async () => {

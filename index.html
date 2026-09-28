@@ -5,12 +5,16 @@
 <details><summary>처음 한 번: 단축어 설정</summary><p class="small"><a href="./shortcut-help.html" target="_blank" rel="noopener" id="shortcutHelpLink">단축어 설정 안내 열기</a> · 설정 후에는 Safari 공유 메뉴에서 실행합니다. 홈 화면 옷장을 쓰면 복사 후 평소 사용하는 옷장 앱을 직접 여세요.</p><button class="secondary" onclick="copyShortcutScript()">단축어 코드 복사</button><p id="shortcutStatus" class="small" role="status"></p><textarea id="shortcutCode" aria-label="단축어 코드" readonly hidden></textarea></details>
 <textarea id="productPayload" aria-label="가져올 상품 정보" placeholder="단축어에서 복사한 상품 정보를 붙여 넣으세요"></textarea>
 <div class="row"><button id="productPreviewBtn" onclick="previewProduct()">상품 미리보기</button><button class="secondary" onclick="productFile.click()">상품 파일 선택</button></div><input id="productFile" type="file" accept=".json,application/json,.txt,text/plain" hidden>
-<p id="productStatus" class="small" role="status"></p><div id="productReview" hidden><img id="productImage" class="product-preview" alt="가져온 상품 사진" hidden><label>사진 선택·교체<input id="productPhoto" type="file" accept="image/*"></label><div id="productFields"></div><button id="productQueueBtn" onclick="queueProduct()">등록 목록에 추가</button></div></details><div class="card"><h2>백업 · 업데이트</h2><div class="box" id="backupBox"><b>옷장 백업 · 복원</b><p class="small">사진과 옷 정보를 JSON 파일로 보관합니다. <b>합치기</b>는 지금 옷장에 백업의 새 옷·코디를 더하고, 둘 다 있으면 더 최근에 바뀐 쪽을 남기며 착용 기록은 합칩니다(폰과 PC를 오갈 때). <b>교체</b>는 지금 옷장을 백업 내용으로 바꿉니다.</p><div class="row"><button class="secondary" onclick="exportBackup()">백업 만들기</button><button class="secondary" onclick="pickMerge()">백업 합치기</button></div><div class="row" style="margin-top:8px"><button class="secondary" onclick="restorePicker.click()">백업으로 교체</button></div><input id="mergePicker" type="file" accept="application/json,.json" hidden onchange="mergeBackup(this.files[0])"><input id="restorePicker" type="file" accept="application/json,.json" hidden onchange="restoreBackup(this.files[0])"><p id="backupStatus" class="small" role="status"></p><div id="backupShare" hidden></div><p id="backupInfo" class="small"></p></div><div class="box"><b>앱 업데이트</b><p class="small">현재 버전 <b>v4.6</b></p><div class="row"><button class="secondary" onclick="checkUpdate(true)">최신 버전 확인</button><button class="secondary" onclick="forceReload()">강제 새로고침</button></div></div><div class="version">Wardrobe v4.6</div></div></div></section>
+<p id="productStatus" class="small" role="status"></p><div id="productReview" hidden><img id="productImage" class="product-preview" alt="가져온 상품 사진" hidden><label>사진 선택·교체<input id="productPhoto" type="file" accept="image/*"></label><div id="productFields"></div><button id="productQueueBtn" onclick="queueProduct()">등록 목록에 추가</button></div></details><div class="card"><h2>백업 · 업데이트</h2><div class="box" id="backupBox"><b>옷장 백업 · 복원</b><p class="small">사진과 옷 정보를 JSON 파일로 보관합니다. <b>합치기</b>는 지금 옷장에 백업의 새 옷·코디를 더하고, 둘 다 있으면 더 최근에 바뀐 쪽을 남기며 착용 기록은 합칩니다(폰과 PC를 오갈 때). <b>교체</b>는 지금 옷장을 백업 내용으로 바꿉니다.</p><div class="row"><button class="secondary" onclick="exportBackup()">백업 만들기</button><button class="secondary" onclick="pickMerge()">백업 합치기</button></div><div class="row" style="margin-top:8px"><button class="secondary" onclick="restorePicker.click()">백업으로 교체</button></div><input id="mergePicker" type="file" accept="application/json,.json" hidden onchange="mergeBackup(this.files[0])"><input id="restorePicker" type="file" accept="application/json,.json" hidden onchange="restoreBackup(this.files[0])"><p id="backupStatus" class="small" role="status"></p><div id="backupShare" hidden></div><p id="backupInfo" class="small"></p></div><div class="box"><b>앱 업데이트</b><p class="small">현재 버전 <b>v4.7</b></p><div class="row"><button class="secondary" onclick="checkUpdate(true)">최신 버전 확인</button><button class="secondary" onclick="forceReload()">강제 새로고침</button></div></div><div class="version">Wardrobe v4.7</div></div></div></section>
 <section id="outfit" class="page"></section>
-<section id="recommend" class="page"><div class="card"><h2>코디 추천</h2><div class="rec-controls"><select id="occasion" aria-label="외출 목적"><option value="1">주말 / 편한 외출</option><option value="2" selected>데이트 / 스마트캐주얼</option><option value="3">출근 / 비즈니스</option><option value="4">격식 있는 자리</option></select><select id="weather" aria-label="날씨"><option value="normal" selected>보통 날씨</option><option value="hot">더운 날</option><option value="cold">추운 날</option></select></div><button onclick="recommend()">내 옷으로 추천</button><div id="result"></div></div></section>
-</main><nav><button class="active" onclick="showPage('closet',this)">옷장</button><button onclick="showPage('outfit',this)">코디</button><button onclick="showPage('add',this)">옷 등록</button><button onclick="showPage('recommend',this)">코디 추천</button></nav><div id="editModal" class="modal" onclick="if(event.target===this)requestCloseEdit()"><div class="sheet"><h2>옷 정보 수정</h2><img id="editImg" alt="옷 사진"><p id="editPartial" class="small warn" hidden>화면 캡처 때 일부가 가려진 사진입니다. '사진 바꾸기'로 다시 찍어 넣으세요.</p><div class="row"><button type="button" class="secondary" id="editPhotoBtn" onclick="$('editPhotoInput').click()">사진 바꾸기</button></div><input id="editPhotoInput" type="file" accept="image/*" hidden onchange="chooseEditPhoto(this.files[0])"><select id="editCategory"></select><select id="editType"></select><div class="row"><select id="editColor"></select><select id="editSeason"></select></div><select id="editFormality"></select><input id="editMemo" placeholder="메모"><details><summary>상품·구매 옵션</summary><label>상품명<input id="detailName" maxlength="500"></label><label>브랜드<input id="detailBrand" maxlength="500"></label><label>상품 주소<input id="detailURL" type="url"></label><label>소재·혼용률<input id="detailMaterial" maxlength="500"></label><div class="row"><label>구매 색상<input id="detailColor" maxlength="500"></label><label>구매 사이즈<input id="detailSize" maxlength="500"></label></div><p id="detailDescription" class="product-description"></p></details>
-<details><summary>세탁 라벨·관리</summary><p class="small">라벨 사진과 제조사 안내를 함께 보관하세요. iPhone 사진 앱에서 라이브 텍스트로 문장을 복사해 아래에 붙여 넣을 수 있습니다. 세탁 기호는 원본을 보고 확인해주세요.</p><label>세탁 라벨 사진<input id="carePhoto" type="file" accept="image/*"></label><img id="careImage" class="care-preview" alt="세탁 라벨 · 누르면 확대" onclick="this.classList.toggle('expanded')" hidden><button id="removeCarePhoto" class="ghost" onclick="removeCarePhoto()" hidden>라벨 사진 제외</button><p id="careStatus" class="small" role="status"></p><label>라벨·제조사 세탁 안내<textarea id="careInstructions" maxlength="8000" placeholder="라벨에서 읽은 안내를 확인 후 입력"></textarea></label><label>내 관리 메모<textarea id="careNotes" maxlength="4000"></textarea></label><label>마지막 세탁일<input id="careLastWashed" type="date"></label></details><div class="actions"><button id="editSaveBtn" onclick="saveEdit()">저장</button><button class="secondary" onclick="closeEdit()">취소</button></div><div class="tidy"><p class="small">옷 정리: 보관하면 옷장·추천에서 숨기고 보관함에서 되살릴 수 있습니다. 삭제는 되돌릴 수 없습니다.</p><div class="actions"><button type="button" class="secondary" id="archiveBtn" onclick="toggleArchive()">보관</button><button type="button" class="secondary danger" onclick="deleteGarment()">삭제</button></div></div></div></div><script src="./wardrobe-import.js?v=4.6"></script><script>
-const APP_VERSION='4.6',DB='wardrobeDB',VER=1,C=['상의','하의','아우터','신발','가방','액세서리'],COL=['검정','흰색','아이보리/크림','네이비','회색','베이지','브라운','카키/올리브','블루','그린','와인/버건디','기타'],SEA=['사계절','봄/가을','여름','겨울'],T={상의:['티셔츠','셔츠','니트','맨투맨','후드','폴로','기타'],하의:['슬랙스','데님','치노','카고','쇼츠','기타'],아우터:['재킷','블레이저','코트','블루종','패딩','가디건','기타'],신발:['스니커즈','로퍼','구두','부츠','샌들','기타'],가방:['백팩','토트','크로스백','브리프케이스','기타'],액세서리:['벨트','모자','기타']},FOR=[['1','캐주얼'],['2','스마트캐주얼'],['3','비즈니스'],['4','포멀']];let db,clothes=[],outfits=[],filter='전체',editingId=null,batch=[],latestVersion=APP_VERSION,visionModel=null,modelPromise=null;let processing=false, mutationBusy=false, lastDiagnostics=[], currentRecommendation=[];
+<section id="recommend" class="page"><div class="card"><h2>코디 추천</h2><div class="rec-controls"><select id="occasion" aria-label="외출 목적"><option value="1">주말 / 편한 외출</option><option value="2" selected>데이트</option><option value="3">출근·격식 있는 자리</option></select><select id="weather" aria-label="날씨"><option value="normal" selected>보통 날씨</option><option value="hot">더운 날</option><option value="cold">추운 날</option></select></div><button onclick="recommend()">내 옷으로 추천</button><div id="result"></div></div></section>
+</main><nav><button class="active" onclick="showPage('closet',this)">옷장</button><button onclick="showPage('outfit',this)">코디</button><button onclick="showPage('add',this)">옷 등록</button><button onclick="showPage('recommend',this)">코디 추천</button></nav><div id="editModal" class="modal" onclick="if(event.target===this)requestCloseEdit()"><div class="sheet"><h2>옷 정보 수정</h2><img id="editImg" alt="옷 사진"><p id="editPartial" class="small warn" hidden>화면 캡처 때 일부가 가려진 사진입니다. '사진 바꾸기'로 다시 찍어 넣으세요.</p><div class="row"><button type="button" class="secondary" id="editPhotoBtn" onclick="$('editPhotoInput').click()">사진 바꾸기</button><button type="button" class="ghost" id="editUntrimBtn" hidden onclick="untrimEditPhoto()">자르지 않은 사진으로</button></div><input id="editPhotoInput" type="file" accept="image/*" hidden onchange="chooseEditPhoto(this.files[0])"><select id="editCategory"></select><select id="editType"></select><div class="row"><select id="editColor"></select><select id="editSeason"></select></div><select id="editFormality"></select><input id="editMemo" placeholder="메모"><details><summary>상품·구매 옵션</summary><label>상품명<input id="detailName" maxlength="500"></label><label>브랜드<input id="detailBrand" maxlength="500"></label><label>상품 주소<input id="detailURL" type="url"></label><label>소재·혼용률<input id="detailMaterial" maxlength="500"></label><div class="row"><label>구매 색상<input id="detailColor" maxlength="500"></label><label>구매 사이즈<input id="detailSize" maxlength="500"></label></div><p id="detailDescription" class="product-description"></p></details>
+<details><summary>세탁 라벨·관리</summary><p class="small">라벨 사진과 제조사 안내를 함께 보관하세요. iPhone 사진 앱에서 라이브 텍스트로 문장을 복사해 아래에 붙여 넣을 수 있습니다. 세탁 기호는 원본을 보고 확인해주세요.</p><label>세탁 라벨 사진<input id="carePhoto" type="file" accept="image/*"></label><img id="careImage" class="care-preview" alt="세탁 라벨 · 누르면 확대" onclick="this.classList.toggle('expanded')" hidden><button id="removeCarePhoto" class="ghost" onclick="removeCarePhoto()" hidden>라벨 사진 제외</button><p id="careStatus" class="small" role="status"></p><label>라벨·제조사 세탁 안내<textarea id="careInstructions" maxlength="8000" placeholder="라벨에서 읽은 안내를 확인 후 입력"></textarea></label><label>내 관리 메모<textarea id="careNotes" maxlength="4000"></textarea></label><label>마지막 세탁일<input id="careLastWashed" type="date"></label></details><div class="actions"><button id="editSaveBtn" onclick="saveEdit()">저장</button><button class="secondary" onclick="closeEdit()">취소</button></div><div class="tidy"><p class="small">옷 정리: 보관하면 옷장·추천에서 숨기고 보관함에서 되살릴 수 있습니다. 삭제는 되돌릴 수 없습니다.</p><div class="actions"><button type="button" class="secondary" id="archiveBtn" onclick="toggleArchive()">보관</button><button type="button" class="secondary danger" onclick="deleteGarment()">삭제</button></div></div></div></div><script src="./wardrobe-import.js?v=4.7"></script><script>
+const APP_VERSION='4.7',DB='wardrobeDB',VER=1,C=['상의','하의','아우터','신발','가방','액세서리'],COL=['검정','흰색','아이보리/크림','네이비','회색','베이지','브라운','카키/올리브','블루','그린','와인/버건디','기타'],SEA=['사계절','봄/가을','여름','겨울'],T={상의:['티셔츠','셔츠','니트','맨투맨','후드','폴로','기타'],하의:['슬랙스','데님','치노','카고','쇼츠','기타'],아우터:['재킷','블레이저','코트','블루종','패딩','가디건','기타'],신발:['스니커즈','로퍼','구두','부츠','샌들','기타'],가방:['백팩','토트','크로스백','브리프케이스','기타'],액세서리:['벨트','모자','기타']},FOR=[['1','캐주얼'],['3','포멀']];
+// 격식은 캐주얼·포멀 두 단계(v4.7). 예전 값은 그대로 두고 읽을 때 1·2(와 빈 값)는 캐주얼, 3·4는 포멀로 본다. 새로 고르면 1 또는 3을 저장한다
+const formalityLevel=v=>(+v||1)>=3?3:1;
+// 색 선택칸 이름: 저장 값은 그대로 두고 헷갈리는 색만 이름을 넓힌다(삭스블루·스카이블루·라이트블루·연청은 블루)
+const COL_OPTS=COL.map(c=>c==='블루'?['블루','블루·하늘색']:c);let db,clothes=[],outfits=[],filter='전체',editingId=null,batch=[],latestVersion=APP_VERSION,visionModel=null,modelPromise=null;let processing=false, mutationBusy=false, lastDiagnostics=[], currentRecommendation=[];
 const imageURLs=new Map(), scriptLoads=new Map();
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -126,13 +130,54 @@ async function undoWear(id,prev){
     await refresh();toast(applied?'기록을 되돌렸습니다':'그 사이 다른 착용 기록이 생겨 되돌리지 않았습니다');
   }catch(e){reportError(e,'되돌리지 못했습니다.')}finally{mutationBusy=false}
 }
-async function f2b(f){
+// 여백 자동 자르기(v4.7): 배경을 지운 사진(투명)이나 밝은 흰 배경 사진에서만 옷 둘레의 빈 여백을 자른다.
+// 옷이 사진을 꽉 채웠거나(테두리가 옷 색) 배경이 어둡거나 고르지 않으면 자르지 않는다. 로고·무늬·그림자만 잡혀도 자르지 않는다.
+// 옷 크기의 14% 여백을 남기고(색 판정이 가장자리를 배경으로 씀) 가로세로 비율은 0.6~1.67로 맞춘다(긴 바지·벨트가 찌그러지지 않게).
+// 자른 사진은 TRIM_SRC에 원본을 기억해 두고, 등록 목록·수정 창의 '자르지 않은 사진으로'로 되돌릴 수 있다
+const TRIM_SRC=new WeakMap();
+function trimBox(im,w,h){
+  const k=Math.min(1,160/Math.max(w,h)),W=Math.max(1,Math.round(w*k)),H=Math.max(1,Math.round(h*k));
+  if(W<8||H<8)return null;
+  const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(im,0,0,W,H);
+  let d;try{d=x.getImageData(0,0,W,H).data}catch{return null}
+  const N=W*H;let clearN=0;for(let i=3;i<d.length;i+=4)if(d[i]<16)clearN++;
+  let content;
+  if(clearN/N>=.03)content=i=>d[i+3]>=16; // 배경을 지운 사진: 투명하지 않은 곳이 옷
+  else{
+    const border=[];for(let X=0;X<W;X++)border.push(X*4,((H-1)*W+X)*4);for(let Y=1;Y<H-1;Y++)border.push(Y*W*4,(Y*W+W-1)*4);
+    const bg=[0,1,2].map(ch=>median(border.map(i=>d[i+ch]))),[,bs,bl]=rgbToHsl(bg[0],bg[1],bg[2]),dist=i=>Math.hypot(d[i]-bg[0],d[i+1]-bg[1],d[i+2]-bg[2]);
+    if(bl<88||bs>12)return null; // 밝은 흰 배경일 때만
+    if(border.filter(i=>dist(i)<18).length/border.length<.92)return null;
+    content=i=>dist(i)>=20; // 크림·아이보리처럼 흰색에 가까운 옷도 옷으로 본다
+  }
+  const rows=new Array(H).fill(0),cols=new Array(W).fill(0);let hits=0;
+  for(let Y=0;Y<H;Y++)for(let X=0;X<W;X++)if(content((Y*W+X)*4)){rows[Y]++;cols[X]++;hits++}
+  const rMin=Math.max(2,W*.01),cMin=Math.max(2,H*.01),first=(a,m)=>a.findIndex(n=>n>=m),last=(a,m)=>a.length-1-[...a].reverse().findIndex(n=>n>=m);
+  const top=first(rows,rMin),left=first(cols,cMin);if(top<0||left<0)return null;
+  const bottom=last(rows,rMin),right=last(cols,cMin),bw=right-left+1,bh=bottom-top+1;
+  if(bw*bh<N*.12||hits<bw*bh*.3)return null; // 로고·무늬·그림자만 잡힌 경우
+  let x0=Math.max(0,left-bw*.14),x1=Math.min(W,right+1+bw*.14),y0=Math.max(0,top-bh*.14),y1=Math.min(H,bottom+1+bh*.14);
+  const grow=(a,b,need,max)=>{const e=need-(b-a);if(e<=0)return [a,b];a-=e/2;b+=e/2;if(a<0){b-=a;a=0}if(b>max){a-=b-max;b=max}return [Math.max(0,a),Math.min(max,b)]};
+  [x0,x1]=grow(x0,x1,(y1-y0)*.6,W);[y0,y1]=grow(y0,y1,(x1-x0)*.6,H);
+  if((x1-x0)*(y1-y0)>N*.85)return null; // 15% 넘게 줄어들 때만 자른다
+  return {sx:x0/k,sy:y0/k,sw:(x1-x0)/k,sh:(y1-y0)/k};
+}
+async function f2b(f,opt={}){
   const im=await blobImage(f);let w=im.naturalWidth||im.width,h=im.naturalHeight||im.height;
   if(!w||!h)throw new Error('사진 크기를 읽을 수 없습니다.');
-  const scale=Math.min(1,1200/Math.max(w,h));
-  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(w*scale));c.height=Math.max(1,Math.round(h*scale));
-  const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);ctx.drawImage(im,0,0,c.width,c.height);
-  return new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error('사진 변환에 실패했습니다.')),'image/jpeg',.84));
+  const box=opt.trim===false?null:trimBox(im,w,h),sw=box?box.sw:w,sh=box?box.sh:h,scale=Math.min(1,1200/Math.max(sw,sh));
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(sw*scale));c.height=Math.max(1,Math.round(sh*scale));
+  const ctx=c.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,c.width,c.height);
+  if(!box)ctx.drawImage(im,0,0,c.width,c.height);
+  else{
+    // WebKit은 EXIF 회전 사진에서 drawImage의 원본 사각형을 회전 전 좌표로 읽는다. 회전이 적용된 전체 사진을 먼저 그린 뒤 캔버스끼리 자른다
+    const s2=Math.min(scale,4096/Math.max(w,h)),full=document.createElement('canvas');full.width=Math.max(1,Math.round(w*s2));full.height=Math.max(1,Math.round(h*s2));
+    full.getContext('2d').drawImage(im,0,0,full.width,full.height);
+    ctx.drawImage(full,box.sx*s2,box.sy*s2,box.sw*s2,box.sh*s2,0,0,c.width,c.height);full.width=full.height=0;
+  }
+  const out=await new Promise((resolve,reject)=>c.toBlob(b=>b?resolve(b):reject(new Error('사진 변환에 실패했습니다.')),'image/jpeg',.84));
+  if(box)TRIM_SRC.set(out,f);
+  return out;
 }
 function rgbToHsl(r,g,b){r/=255;g/=255;b/=255;let M=Math.max(r,g,b),m=Math.min(r,g,b),h=0,s=0,l=(M+m)/2;if(M!==m){let d=M-m;s=l>.5?d/(2-M-m):d/(M+m);h=M===r?(g-b)/d+(g<b?6:0):M===g?(b-r)/d+2:(r-g)/d+4;h*=60}return[h,s*100,l*100]}function classifyColor(r,g,b){
   const[h,s,l]=rgbToHsl(r,g,b);if(l<16)return'검정';
@@ -327,7 +372,7 @@ $('photo').onchange=async e=>{
       try{
         const sourceId=await sha256(await f.arrayBuffer());if(have.has(sourceId)){skipped++;continue}have.add(sourceId);
         const image=await f2b(f),col=await estimateColor(image);
-        const x={image,sourceId,category:'',type:'',color:'',manual:{},requestId:0,aiStatus:'분류 중…',season:'사계절',formality:2,memo:''};
+        const x={image,sourceId,category:'',type:'',color:'',manual:{},requestId:0,aiStatus:'분류 중…',season:'사계절',formality:1,memo:''};
         applyColorResult(x,col);batch.push(x);added.push(x);renderQueue();
       }catch{failures++}
     }
@@ -355,14 +400,14 @@ function renderQueue(){
     <div class="quick">${C.map(c=>`<button class="${x.category===c?'on':''}" onclick="qset(${i},'category',${arg(c)})">${esc(c)}</button>`).join('')}</div>
     <div class="autoline"><span class="dot" style="background:rgb(${x.autoRgb.join(',')})"></span> 색상 후보: <b>${esc(x.autoColor)}</b>${x.colorAnalysis.reliable?'':' · 확인 필요'}</div>
     ${x.colorAnalysis.reason?`<div class="small warn">${esc(x.colorAnalysis.reason)}</div>`:''}
-    <select aria-label="사진 ${i+1} 색상" onchange="qset(${i},'color',this.value)"><option value="" ${!x.color?'selected':''}>색상 확인 필요</option>${opts(COL,x.color)}</select>
+    <select aria-label="사진 ${i+1} 색상" onchange="qset(${i},'color',this.value)"><option value="" ${!x.color?'selected':''}>색상 확인 필요</option>${opts(COL_OPTS,x.color)}</select>
     <input aria-label="사진 ${i+1} 메모" placeholder="이름·메모 (예: 그레이 니트)" value="${esc(x.memo)}" oninput="qset(${i},'memo',this.value)">
     <details ${x.more?'open':''} ontoggle="if(batch[${i}])batch[${i}].more=this.open"><summary class="small">세부종류·계절·격식${x.type?` · ${esc(x.type)}`:''}</summary>
       <select aria-label="사진 ${i+1} 세부종류" onchange="qset(${i},'type',this.value)"><option value="">세부종류 확인 필요</option>${opts(T[x.category]||[],x.type)}</select>
       <select aria-label="사진 ${i+1} 계절" onchange="qset(${i},'season',this.value)">${opts(SEA,x.season)}</select>
-      <select aria-label="사진 ${i+1} 격식도" onchange="qset(${i},'formality',+this.value)">${opts(FOR,x.formality)}</select>
+      <select aria-label="사진 ${i+1} 격식도" onchange="qset(${i},'formality',+this.value)">${opts(FOR,formalityLevel(x.formality))}</select>
     </details>
-    <div class="actions"><button class="ghost" ${processing||mutationBusy||x.analyzing?'disabled':''} onclick="reanalyze(${i})">${x.analyzing?'분석 중…':'다시 분석'}</button><button class="ghost" ${processing||mutationBusy||x.analyzing?'disabled':''} onclick="removePending(${i})">목록에서 제외</button></div>
+    <div class="actions"><button class="ghost" ${processing||mutationBusy||x.analyzing?'disabled':''} onclick="reanalyze(${i})">${x.analyzing?'분석 중…':'다시 분석'}</button><button class="ghost" ${processing||mutationBusy||x.analyzing?'disabled':''} onclick="removePending(${i})">목록에서 제외</button>${TRIM_SRC.has(x.image)?`<button class="ghost" ${processing||mutationBusy||x.analyzing?'disabled':''} onclick="untrimPending(${i})">자르지 않은 사진으로</button>`:''}</div>
     ${x.wardrobeDetails?.product?`<div class="small">상품 정보: ${esc(x.wardrobeDetails.product.brand)} · ${esc(x.wardrobeDetails.product.color)} · ${esc(x.wardrobeDetails.product.size)}<br>${esc(x.wardrobeDetails.product.material)}</div>`:''}
     ${x.ai&&DEBUG?`<details><summary class="small">분석 근거</summary><div class="small">${esc(x.ai.runtimeWarning||'')}<br>점수는 정답률이 아닙니다. 대분류 점수 ${Math.round(x.ai.categoryConfidence*100)}% / 세부종류 점수 ${Math.round(x.ai.typeConfidence*100)}%<br>${esc(x.ai.reason)}<br>${x.ai.predictions.map(p=>`${esc(p.className)}: ${Math.round(p.probability*100)}%`).join('<br>')}</div></details>`:''}
   </div></div>`).join('');
@@ -376,6 +421,13 @@ async function reanalyze(i){
   x.analyzing=true;const request=++x.requestId;renderQueue();
   try{const col=await estimateColor(x.image),ai=await classifyGarment(x.image);if(!batch.includes(x)||request!==x.requestId)return;applyColorResult(x,col);applyCategoryResult(x,ai)}
   catch(e){reportError(e,'재분석하지 못했습니다.')}finally{x.analyzing=false;renderQueue()}
+}
+// 여백을 자른 사진을 원래 사진으로 되돌린다(색은 다시 판정, 분류는 '다시 분석'으로)
+async function untrimPending(i){
+  const x=batch[i],src=x&&TRIM_SRC.get(x.image);if(!src||processing||mutationBusy||x.analyzing)return;
+  x.analyzing=true;const request=++x.requestId;renderQueue();
+  try{const img=await f2b(src,{trim:false}),col=await estimateColor(img);if(!batch.includes(x)||request!==x.requestId)return;x.image=img;applyColorResult(x,col)}
+  catch(e){reportError(e,'사진을 되돌리지 못했습니다.')}finally{x.analyzing=false;renderQueue();pruneURLs()}
 }
 function removePending(i){if(processing||mutationBusy||batch[i]?.analyzing)return;batch.splice(i,1);guardBatchPredictions();pruneURLs();renderQueue()}
 function qset(i,k,v){
@@ -406,11 +458,11 @@ let pendingImage=null,pendingPreview='',photoBusy=false,editSnapshot='',editOrig
 const hasExtras=()=>typeof initWardrobeExtras==='function'; // wardrobe-import.js를 불러왔는지(없으면 상품·세탁 부분만 건너뜀)
 function editFormState(){return [...$('editModal').querySelectorAll('input,select,textarea')].filter(e=>e.type!=='file').map(e=>e.value).join('\u0001')+'\u0002'+(hasExtras()?String(editDetails?.care?.labelImage||'').length:0)+'\u0002'+(pendingImage?pendingImage.size:0)}
 function editDirty(){return $('editModal').classList.contains('open')&&editFormState()!==editSnapshot}
-function clearPendingPhoto(){pendingImage=null;if(pendingPreview){URL.revokeObjectURL(pendingPreview);pendingPreview=''}}
+function clearPendingPhoto(){pendingImage=null;if(pendingPreview){URL.revokeObjectURL(pendingPreview);pendingPreview=''}const u=$('editUntrimBtn');if(u)u.hidden=true}
 function openEdit(id){
   const c=clothes.find(x=>x.id===id);if(!c)return;clearPendingPhoto();editingId=id;editSession++;if(hasExtras())loadWardrobeDetails(c);$('editImg').src=url(c.image);
   $('editCategory').innerHTML=opts(C,c.category);$('editType').innerHTML='<option value="">세부종류 확인 필요</option>'+opts(T[c.category]||[],c.type);
-  $('editColor').innerHTML=opts(COL,c.color||'기타');$('editSeason').innerHTML=opts(SEA,c.season||'사계절');$('editFormality').innerHTML=opts(FOR,c.formality||2);$('editMemo').value=c.memo||'';
+  $('editColor').innerHTML=opts(COL_OPTS,c.color||'기타');$('editSeason').innerHTML=opts(SEA,c.season||'사계절');$('editFormality').innerHTML=opts(FOR,formalityLevel(c.formality));$('editMemo').value=c.memo||'';
   $('editCategory').onchange=()=>{$('editType').innerHTML='<option value="">세부종류 확인 필요</option>'+opts(T[$('editCategory').value]||[],'')};
   $('editPartial').hidden=!c.partial;$('archiveBtn').textContent=c.archived?'보관 해제':'보관';
   $('editModal').classList.add('open');editSnapshot=editFormState();
@@ -419,10 +471,16 @@ function openEdit(id){
 function closeEdit(){if(mutationBusy||photoBusy){toast('처리 중입니다. 잠시 후 다시 눌러주세요');return false}editSession++;if(hasExtras()){detailsSession++;detailsBusy=false}clearPendingPhoto();$('editModal').classList.remove('open');editingId=null;return true}
 function requestCloseEdit(){if(editDirty()&&!confirm('저장하지 않은 수정 내용이 있습니다. 닫을까요?'))return;closeEdit()}
 function finishEdit(){clearPendingPhoto();$('editModal').classList.remove('open');editingId=null;editSession++;if(hasExtras())detailsSession++}
+async function untrimEditPhoto(){
+  const src=pendingImage&&TRIM_SRC.get(pendingImage);if(!src||photoBusy||mutationBusy||editingId===null)return;
+  const session=editSession,id=editingId;photoBusy=true;$('editSaveBtn').disabled=true;
+  try{const img=await f2b(src,{trim:false});if(session!==editSession||editingId!==id)return;clearPendingPhoto();pendingImage=img;pendingPreview=URL.createObjectURL(img);$('editImg').src=pendingPreview}
+  catch(e){reportError(e,'사진을 되돌리지 못했습니다.')}finally{photoBusy=false;$('editSaveBtn').disabled=false}
+}
 async function chooseEditPhoto(file){
   if(!file||editingId===null||photoBusy||mutationBusy){$('editPhotoInput').value='';if(file&&(photoBusy||mutationBusy))toast('처리 중입니다. 잠시 후 다시 골라주세요');return}
   const session=editSession,id=editingId;photoBusy=true;$('editSaveBtn').disabled=true;$('editPhotoBtn').textContent='사진 처리 중…';
-  try{const img=await f2b(file);if(session!==editSession||editingId!==id)return;clearPendingPhoto();pendingImage=img;pendingPreview=URL.createObjectURL(img);$('editImg').src=pendingPreview;$('editPartial').hidden=true}
+  try{const img=await f2b(file);if(session!==editSession||editingId!==id)return;clearPendingPhoto();pendingImage=img;pendingPreview=URL.createObjectURL(img);$('editImg').src=pendingPreview;$('editPartial').hidden=true;$('editUntrimBtn').hidden=!TRIM_SRC.has(img)}
   catch(e){reportError(e,'사진을 바꾸지 못했습니다.')}
   finally{photoBusy=false;$('editSaveBtn').disabled=false;$('editPhotoBtn').textContent='사진 바꾸기';$('editPhotoInput').value=''}
 }
@@ -598,7 +656,7 @@ const validDates=a=>(Array.isArray(a)?a:[]).filter(d=>typeof d==='string'&&/^\d{
 const CONTENT_KEYS=['category','type','color','season','formality','memo','archived','partial'];
 // 상품·세탁 정보는 빈 칸을 뺀 뒤 비교한다(아무것도 안 고치고 저장해도 빈 묶음이 붙기 때문)
 function cleanDetails(v){if(v&&typeof v==='object'&&!Array.isArray(v)){const o={};for(const [k,x] of Object.entries(v)){const c=cleanDetails(x);if(c!==undefined)o[k]=c}return Object.keys(o).length?o:undefined}return v===''||v===null||v===undefined?undefined:v}
-function sameContent(a,b){return CONTENT_KEYS.every(k=>(a[k]??null)===(b[k]??null))&&JSON.stringify(cleanDetails(a.wardrobeDetails)||{})===JSON.stringify(cleanDetails(b.wardrobeDetails)||{})&&(a.image?.size??0)===(b.image?.size??0)&&(a.image?.type??'')===(b.image?.type??'')}
+function sameContent(a,b){return CONTENT_KEYS.every(k=>k==='formality'?formalityLevel(a[k])===formalityLevel(b[k]):(a[k]??null)===(b[k]??null))&&JSON.stringify(cleanDetails(a.wardrobeDetails)||{})===JSON.stringify(cleanDetails(b.wardrobeDetails)||{})&&(a.image?.size??0)===(b.image?.size??0)&&(a.image?.type??'')===(b.image?.type??'')}
 const sameOutfit=(a,b)=>(a.name??'')===(b.name??'')&&JSON.stringify(a.slots||{})===JSON.stringify(b.slots||{});
 const newerOf=(loc,inc)=>(inc.updatedAt||0)>(loc.updatedAt||0)?'inc':(loc.updatedAt||0)>(inc.updatedAt||0)?'loc':'tie';
 // 합치기 계획. 규칙: 없는 id는 더한다(지운 표시가 더 최근이면 더하지 않음). 둘 다 있으면 내용은 수정 시각이 더 최근인 쪽, 시각이 같거나 없고 내용이 다르면 '알 수 없음'(prefer에 든 id만 백업 쪽).
@@ -679,7 +737,12 @@ function colorScore(a,b){if(!a||!b)return 1;if(a===b)return NEUTRAL.has(a)?3:2;i
   if(w==='cold')return c.season==='여름'?-8:c.season==='겨울'?3:c.season==='봄/가을'?1:1;
   return c.season==='사계절'?2:c.season==='봄/가을'?2:0;
 }
-function itemScore(c,t,w){return 5-Math.abs((+c.formality||2)-t)*2+weatherScore(c,w)+(c.lastWorn?Math.max(0,Math.min(2,(Date.now()-c.lastWorn)/604800000)):2)}
+// 같은 조합 안에서 격식이 다르면 1점 뺀다(데이트처럼 격식을 가리지 않는 목적에서 정장 바지+샌들 같은 조합이 앞에 오지 않게)
+const fitScore=(a,b)=>formalityLevel(a.formality)===formalityLevel(b.formality)?0:-1;
+// 세부종류 힌트: 데이트·출근이면 셔츠·니트·폴로·슬랙스·치노·블레이저·코트·로퍼·구두·토트·브리프케이스는 조금 올리고, 후드·맨투맨·쇼츠·카고·샌들은 조금 내린다(주말은 그대로)
+const DRESSY=new Set(['셔츠','니트','폴로','슬랙스','치노','블레이저','코트','로퍼','구두','토트','브리프케이스']),SPORTY=new Set(['후드','맨투맨','쇼츠','카고','샌들']);
+const typeHint=(c,t)=>t<2?0:(DRESSY.has(c.type)?1:SPORTY.has(c.type)?-1:0)*(t===2?.5:1);
+function itemScore(c,t,w){return 5-Math.abs(formalityLevel(c.formality)-t)*2+typeHint(c,t)+weatherScore(c,w)+(c.lastWorn?Math.max(0,Math.min(2,(Date.now()-c.lastWorn)/604800000)):2)}
 // 서로 다른 조합을 점수 순으로 고른다. 옷마다 점수를 한 번만 계산하고, 신발은 하의마다 한 번만 골라 쌍 점수에 쓴다(상의×하의 + 하의×신발).
 // avoid={tops,bottoms,items}: 앞에서 보여 준 옷. 그 옷이 든 쌍·그 아우터·신발·가방을 먼저 건너뛰고, 모자라면 다시 쓴다
 function recommendCombos(t,w,seen=new Set(),count=3,avoid={}){
@@ -689,9 +752,9 @@ function recommendCombos(t,w,seen=new Set(),count=3,avoid={}){
   const memo=new Map(),S=c=>{let v=memo.get(c);if(v===undefined){v=itemScore(c,t,w);memo.set(c,v)}return v};
   const avT=avoid.tops||new Set(),avB=avoid.bottoms||new Set(),avI=avoid.items||new Set();
   // 가장 잘 맞는 것 하나. 동점이면 오래 안 입은 것. exclude에 든 것은 다른 후보가 있을 때만 건너뜀
-  const bestFor=(list,refs,exclude)=>{let best=null,bs=-Infinity,bl=Infinity;for(const pass of [0,1]){for(const x of list){if(pass===0&&exclude&&exclude.has(x.id))continue;const v=S(x)+refs.reduce((a,r)=>a+colorScore(x.color,r.color),0)/refs.length,l=x.lastWorn||0;if(v>bs||(v===bs&&l<bl)){bs=v;bl=l;best=x}}if(best)break}return best?{item:best,score:bs}:null};
+  const bestFor=(list,refs,exclude)=>{let best=null,bs=-Infinity,bl=Infinity;for(const pass of [0,1]){for(const x of list){if(pass===0&&exclude&&exclude.has(x.id))continue;const v=S(x)+refs.reduce((a,r)=>a+colorScore(x.color,r.color)+fitScore(x,r),0)/refs.length,l=x.lastWorn||0;if(v>bs||(v===bs&&l<bl)){bs=v;bl=l;best=x}}if(best)break}return best?{item:best,score:bs}:null};
   const shoeFor=new Map(Bp.map(b=>[b,bestFor(Sp,[b])])),pairs=[];
-  Tp.forEach((a,ia)=>Bp.forEach((b,ib)=>{const sh=shoeFor.get(b);pairs.push({a,b,ia,ib,sh:sh&&sh.item,score:S(a)+S(b)+colorScore(a.color,b.color)+(sh?sh.score:0),worn:(a.lastWorn||0)+(b.lastWorn||0)})}));
+  Tp.forEach((a,ia)=>Bp.forEach((b,ib)=>{const sh=shoeFor.get(b);pairs.push({a,b,ia,ib,sh:sh&&sh.item,score:S(a)+S(b)+colorScore(a.color,b.color)+fitScore(a,b)+(sh?sh.score:0),worn:(a.lastWorn||0)+(b.lastWorn||0)})}));
   pairs.sort((x,y)=>y.score-x.score||x.worn-y.worn||x.ia-y.ia||x.ib-y.ib);
   const needOuter=w==='cold'||(t>=3&&w!=='hot'),wantBag=t>=3,out=[],usedT=new Set(),usedB=new Set(),usedI=new Set(avI);
   for(const strict of [true,false]){
@@ -719,7 +782,7 @@ function recommend(more){
   recommendations=combos;currentRecommendation=Object.values(combos[0].slots).filter(Boolean);
   const card=id=>{const c=clothes.find(x=>x.id===id);return c?`<div class="recitem"><img alt="${esc(c.memo||c.type||c.category)}" src="${url(c.image)}"><div><b>${esc(c.memo||c.type||c.category)}</b><br>${esc(c.category)} · ${esc(c.color)}</div></div>`:''};
   const hasO=combos.some(c=>c.slots.outer),hasG=combos.some(c=>c.slots.bag);
-  const why=(hasO?(w==='cold'?'추운 날이라 아우터를 넣었고, ':'출근·격식이라 아우터를 넣었고, '):'')+(hasG?'출근·격식용 가방을 골랐습니다. ':'');
+  const why=(hasO?(w==='cold'?'추운 날이라 아우터를 넣었고, ':'출근·격식이라 아우터를 넣었고, '):'')+(hasG?'출근·격식이라 가방도 넣었습니다. ':'');
   $('result').innerHTML=`<div class="reason">${why}선택한 날씨·격식, 색 조합과 마지막 착용일을 반영해 서로 다른 조합 ${combos.length}개를 골랐습니다.</div>`
     +combos.map((c,i)=>`<div class="reccard"><div class="small muted">조합 ${i+1}</div><div class="recrow">${['outer','top','bottom','shoes','bag'].map(k=>c.slots[k]?card(c.slots[k]):'').join('')}</div><div class="actions"><button class="recuse" onclick="useRecommendation(${i})">코디 탭에 담기</button></div></div>`).join('')
     +'<button class="secondary recmore" onclick="recommend(true)">다른 추천 보기</button>';
@@ -732,4 +795,4 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 checkUpdate(false);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate(false)});
 if('serviceWorker' in navigator&&(location.protocol==='https:'||/^(localhost|127\.0\.0\.1)$/.test(location.hostname)))window.addEventListener('load',()=>navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`).catch(()=>{})); // 오프라인에서도 앱 화면이 열리게
 (async()=>{const slow=setTimeout(()=>{if(!db)$('summary').textContent='옷장을 여는 데 시간이 걸립니다. 계속 이러면 옷 등록 탭의 강제 새로고침을 눌러주세요.'},10000);try{await openDB();clearTimeout(slow);await refresh();requestPersist()}catch(e){clearTimeout(slow);$('summary').textContent='옷장을 불러오지 못했습니다. 새로고침해주세요.';reportError(e)}})();
-</script><script src="./outfits.js?v=4.6"></script></body></html>
+</script><script src="./outfits.js?v=4.7"></script></body></html>
