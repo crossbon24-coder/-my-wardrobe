@@ -143,6 +143,8 @@ async function productFromText(raw){
   }
   // 주소(또는 '[무신사] 상품명 https://…' 같은 공유 문구)
   const link=(text.match(/https?:\/\/[^\s"'<>]+/)||[])[0];
+  // 쇼핑몰 앱의 공유 링크만 붙여 넣은 경우(단축어를 아직 안 돌림): 앱은 이 링크를 직접 열 수 없다
+  if(link&&/^https?:\/\/[^/]*(onelink\.me|app\.link)\//i.test(link))throw new Error("쇼핑몰 앱의 공유 링크입니다. 링크를 복사한 상태에서 단축어 '옷장 상품 가져오기(앱)'을 실행한 뒤 다시 붙여넣기를 눌러주세요.");
   if(link){
     let html;try{html=await fetchProductPage(link)}catch(e){throw new Error(e?.message&&/인코딩|너무 큽니다/.test(e.message)?e.message:LINK_HELP)}
     return parseProductPackage(await productFromHTML(html,cleanProductURL(link)));

@@ -1124,6 +1124,11 @@ async function check(name, fn, opts) {
     assert.equal(r.ok, 'read 셔츠'); assert.match(r.odd, /글이 없습니다.*com\.apple\.shortcuts\.dictionary/); assert.match(r.empty, /'텍스트'\(사전 값 칩\)/);
   });
 
+  await check('Pasting a bare app share link (onelink) says to run the app Shortcut first', async page => {
+    const r = await page.evaluate(async () => { try { await productFromText('https://musinsa.onelink.me/PvkC/46vmn1qc'); return 'ok'; } catch (e) { return e.message; } });
+    assert.match(r, /공유 링크입니다.*옷장 상품 가져오기\(앱\)/);
+  });
+
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {
     const r = await page.evaluate(async () => {
       await basic(); const n = imageURLs.size;
