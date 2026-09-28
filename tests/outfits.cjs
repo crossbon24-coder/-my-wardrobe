@@ -23,7 +23,8 @@ async function fresh() {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-  page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+  // 외부 https(모델 CDN 등)는 일부러 막으므로 그 '불러오기 실패' 콘솔 메시지만 예상된 것으로 거른다
+  page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource: net::ERR_FAILED/.test(m.text())) errors.push('console: ' + m.text()); });
   await page.route('https://**/*', route => route.abort());
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(() => /옷 \d+벌/.test(document.getElementById('summary').textContent) && window.OF);

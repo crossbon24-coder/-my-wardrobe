@@ -40,3 +40,6 @@ jobs:
 
       - name: Outfit suite (tests/outfits.cjs)
         run: node tests/outfits.cjs
+
+      - name: Feature suite (tests/features.cjs)
+        run: node tests/features.cjs

@@ -208,7 +208,7 @@ async function check(name, fn) { await fn(); console.log('PASS', name); passed++
   });
   await check('Unavailable CDN leaves upload usable for manual registration', async () => {
     const r=await page.evaluate(async()=>{
-      visionModel=null;modelPromise=null;scriptLoads.clear();delete window.tf;delete window.mobilenet;
+      visionModel=null;modelPromise=null;scriptLoads.clear();delete window.tf;delete window.mobilenet;batch=[]; // v4.4: 사진 추가는 기존 목록 뒤에 이어 붙는다
       const image=(await fixture()).image;
       await $('photo').onchange({target:{files:[new File([image],'offline.png',{type:'image/png'})],value:''}});
       return [batch.length,batch[0].category,processing,$('photo').disabled,$('modelStatus').textContent];
