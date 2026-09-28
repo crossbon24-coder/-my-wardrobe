@@ -4,13 +4,15 @@
  */
 const { chromium } = require('playwright');
 const { createServer } = require('node:http');
-const { readFileSync } = require('node:fs');
+const { readFileSync, existsSync } = require('node:fs');
 const { join } = require('node:path');
 const assert = require('node:assert/strict');
 const root = join(__dirname, '..');
 const server = createServer((req, res) => {
   const path = req.url.split('?')[0];
-  const file = path === '/version.json' ? 'version.json' : path === '/' ? 'index.html' : ['/wardrobe-import.js','/product-shortcut.js','/outfits.js'].includes(path) ? path.slice(1) : null;
+  // 저장소 안의 파일은 모두 제공한다(허용 목록을 두면 새 파일이 404로 숨어도 검사가 통과해 버림). .git과 저장소 밖은 막는다
+  const rel = path === '/' ? 'index.html' : decodeURIComponent(path).replace(/^\/+/, '');
+  const full = join(root, rel), file = !rel.split(/[\\/]/).includes('..') && !rel.startsWith('.git') && existsSync(full) ? rel : null;
   if (!file) { res.writeHead(404).end(); return; }
   res.setHeader('Content-Type', file.endsWith('.json') ? 'application/json' : file.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8');
   res.end(readFileSync(join(root, file)));
@@ -21,7 +23,7 @@ async function check(name, fn) { await fn(); console.log('PASS', name); passed++
 (async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   browser = await chromium.launch({ headless: true, ...(process.env.WARDROBE_TEST_CHROMIUM ? { executablePath: process.env.WARDROBE_TEST_CHROMIUM, args: ['--no-sandbox','--disable-dev-shm-usage'] } : {}) });
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
   const page = await context.newPage();
   page.on('pageerror', e => errors.push(e.message));
   // No real user photos, paid APIs or remote models are used by this suite.
@@ -263,9 +265,10 @@ async function check(name, fn) { await fn(); console.log('PASS', name); passed++
       }return [errors.length,before,(await all('clothes')).length];
     });assert.equal(r[0],3);assert.equal(r[1],r[2]);
   });
-  await check('Product title hints abstain when a title mentions conflicting garment kinds', async () => {
+  await check('Product title hints: the last garment noun decides; a title with no garment noun abstains', async () => {
     const r=await page.evaluate(()=>['테스트 다운 패딩','Chelsea boots','패딩 부츠','가방'].map(productTitleSuggestion));
-    assert.deepEqual(r,[{category:'아우터',type:'패딩'},{category:'신발',type:'부츠'},{category:'',type:''},{category:'',type:''}]);
+    // v4.6(Claude): 상품명의 마지막 옷 이름을 그 상품으로 본다. '패딩 부츠'는 보류 대신 신발·부츠. 옷 이름이 없는 '가방'은 계속 보류
+    assert.deepEqual(r,[{category:'아우터',type:'패딩'},{category:'신발',type:'부츠'},{category:'신발',type:'부츠'},{category:'',type:''}]);
   });
   await check('Native image envelope previews safely and adds one garment without replacing the wardrobe', async () => {
     const r=await page.evaluate(async()=>{

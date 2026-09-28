@@ -2,6 +2,9 @@
 let productDraft=null, productBusy=false, editDetails={}, detailsBusy=false, detailsSession=0;
 const PRODUCT_LIMIT=16*1024*1024;
 function plainProductText(v,max=500){return typeof v==='string'?v.trim().slice(0,max):''}
+// 광고·추적용 꼬리표(utm_*, fbclid, gclid 등)는 빼고 저장한다
+const TRACK_KEY=/^(utm_[a-z_]*|fbclid|gclid|igshid|mc_[a-z_]*|_hs[a-z_]*|ref_?src|srsltid)$/i;
+function cleanProductURL(value){try{const u=new URL(value);if(!u.search)return u.href;const kept=u.search.slice(1).split('&').filter(p=>p&&!TRACK_KEY.test((k=>{try{return decodeURIComponent(k)}catch{return k}})(p.split('=')[0])));u.search=kept.length?'?'+kept.join('&'):'';return u.href}catch{return value}}
 function productURL(value){
   if(!value)return '';
   try{const u=new URL(value);if(!/^https?:$/.test(u.protocol)||u.username||u.password)throw 0;u.hash='';return u.href}catch{throw new Error('상품·사진 주소는 http 또는 https 주소여야 합니다.')}
@@ -10,7 +13,7 @@ function productMetadata(p){
   if(!p||typeof p!=='object'||Array.isArray(p))throw new Error('상품 정보 형식이 잘못되었습니다.');
   const result={};
   for(const k of ['name','brand','material','color','size','sku','listedPrice','currency','description'])result[k]=plainProductText(p[k],k==='description'?4000:500);
-  result.url=productURL(plainProductText(p.url,4096));return result;
+  result.url=productURL(plainProductText(p.url,4096));if(result.url)result.url=cleanProductURL(result.url);return result;
 }
 function parseProductPackage(text){
   if(text.length>PRODUCT_LIMIT)throw new Error('등록 파일이 너무 큽니다. 사진 크기를 줄여주세요.');
@@ -74,11 +77,20 @@ async function chooseProductPhoto(file){
   try{const image=await f2b(file);if(productDraft!==draft)return;draft.image=image;renderProductPhoto();$('productStatus').textContent='선택한 사진으로 등록합니다.'}
   catch(e){$('productStatus').textContent=e.message}finally{productBusy=false;$('productQueueBtn').disabled=false;pruneURLs()}
 }
+// 상품명으로 분류 참고값을 채운다. 상품명에서 '가장 뒤에 나오는 옷 이름'을 그 상품으로 본다(니트 가디건 → 가디건, 데님 셔츠 → 셔츠,
+// 패딩 부츠 → 부츠, 니트 조거 팬츠 → 팬츠). 같은 자리에서 끝나면 더 긴 이름(티셔츠 > 셔츠, 폴로 셔츠 > 셔츠)을 쓴다. 아우터이고 '패딩'이 들어 있으면 세부종류는 패딩.
+// 아무 옷 이름도 없으면 보류한다. MobileNet 결과나 사용자 확정값이 아니며, 등록 목록에서 확인을 요청한다.
 function productTitleSuggestion(name){
-  const s=name.toLowerCase(),matches=[];
-  const rules=[[/패딩|\b(?:puffer|down jacket)\b/,'아우터','패딩'],[/첼시|부츠|\bboots?\b/,'신발','부츠'],[/스니커즈|운동화|\b(?:sneakers?|running shoes?)\b/,'신발','스니커즈'],[/청바지|데님|\b(?:jeans|denim)\b/,'하의','데님'],[/백팩|\bbackpack\b/,'가방','백팩'],[/토트|\btote\b/,'가방','토트'],[/가디건|\bcardigan\b/,'아우터','가디건']];
-  for(const [re,c,t] of rules)if(re.test(s))matches.push([c,t]);
-  return matches.length===1?{category:matches[0][0],type:matches[0][1]}:{category:'',type:''};
+  const s=String(name||'').toLowerCase();
+  const rules=[[/티\s?셔츠|\bt-?shirts?\b|\btees?\b/g,'상의','티셔츠'],[/폴로\s?셔츠|폴로|\bpolo(?: shirt)?s?\b/g,'상의','폴로'],[/스웨트\s?셔츠|스웻\s?셔츠|맨투맨|\bsweat ?shirts?\b/g,'상의','맨투맨'],[/셔츠|\bshirts?\b/g,'상의','셔츠'],[/니트|스웨터|\b(?:knit|sweater)s?\b/g,'상의','니트'],[/후드(?:티)?|\bhood(?:ie|y)s?\b/g,'상의','후드'],
+    [/가디건|\bcardigans?\b/g,'아우터','가디건'],[/블레이저|\bblazers?\b/g,'아우터','블레이저'],[/코트|\bcoats?\b/g,'아우터','코트'],[/자켓|재킷|점퍼|\bjackets?\b/g,'아우터','재킷'],[/패딩|\bpuffers?\b/g,'아우터','패딩'],
+    [/청바지|데님\s?(?:팬츠|바지)|\bjeans\b/g,'하의','데님'],[/슬랙스|\bslacks\b/g,'하의','슬랙스'],[/쇼츠|반바지|\bshorts\b/g,'하의','쇼츠'],[/팬츠|바지|조거|\b(?:pants|trousers|joggers)\b/g,'하의',''],[/데님|\bdenim\b/g,'하의','데님'],
+    [/첼시|부츠|\bboots?\b/g,'신발','부츠'],[/로퍼|\bloafers?\b/g,'신발','로퍼'],[/스니커즈|운동화|\b(?:sneakers?|running shoes?)\b/g,'신발','스니커즈'],
+    [/크로스백|\bcross ?body(?: bag)?\b/g,'가방','크로스백'],[/백팩|\bbackpacks?\b/g,'가방','백팩'],[/토트(?:백)?|\btotes?(?: bag)?\b/g,'가방','토트']];
+  let best=null;
+  for(const [re,c,t] of rules)for(const m of s.matchAll(re)){const end=m.index+m[0].length,len=m[0].length;if(!best||end>best.end||(end===best.end&&len>best.len))best={end,len,c,t}}
+  if(!best)return {category:'',type:''};
+  return {category:best.c,type:best.c==='아우터'&&/패딩|\bpuffer/.test(s)?'패딩':best.t};
 }
 async function queueProduct(){
   if(productBusy||processing||mutationBusy||batch.some(x=>x.analyzing)||!productDraft)return;
@@ -133,15 +145,24 @@ function collectWardrobeDetails(){
   const care={...editDetails.care,instructions:$('careInstructions').value.trim().slice(0,8000),notes:$('careNotes').value.trim().slice(0,4000),lastWashed:$('careLastWashed').value};
   return {...editDetails,product:{...editDetails.product,...p},care};
 }
+let shortcutCodeCache=null;
+function prefetchShortcutCode(){if(shortcutCodeCache)return;fetch('./product-shortcut.js').then(r=>r.ok?r.text():null).then(t=>{if(t)shortcutCodeCache=t}).catch(()=>{})}
 async function copyShortcutScript(){
+  const box=$('shortcutCode'),st=$('shortcutStatus');
+  const show=code=>{box.value=code;box.hidden=false;box.readOnly=false;box.focus();box.setSelectionRange(0,code.length);box.readOnly=true};
   try{
-    const r=await fetch('./product-shortcut.js?v=3.9');if(!r.ok)throw new Error('단축어 코드를 불러오지 못했습니다.');
-    const code=await r.text();$('shortcutCode').value=code;$('shortcutCode').hidden=false;
-    try{await navigator.clipboard.writeText(code);$('shortcutStatus').textContent='단축어 코드를 복사했습니다.'}
-    catch{$('shortcutCode').focus();$('shortcutCode').select();$('shortcutStatus').textContent='아래 코드를 전체 선택해 복사해주세요.'}
-  }catch(e){$('shortcutStatus').textContent=e.message}
+    if(shortcutCodeCache){
+      const code=shortcutCodeCache;
+      if(navigator.clipboard&&navigator.clipboard.writeText){try{await navigator.clipboard.writeText(code);st.textContent='단축어 코드를 복사했습니다.';return}catch{}}
+      show(code);let ok=false;try{ok=document.execCommand('copy')}catch{}
+      st.textContent=ok?'단축어 코드를 복사했습니다.':'아래 칸의 코드가 선택되어 있습니다. 길게 눌러 복사하세요.';return;
+    }
+    const r=await fetch('./product-shortcut.js');if(!r.ok)throw new Error('단축어 코드를 불러오지 못했습니다.');
+    shortcutCodeCache=await r.text();show(shortcutCodeCache);st.textContent='코드를 불러왔습니다. 한 번 더 누르면 복사합니다(또는 아래 칸을 길게 눌러 복사).';
+  }catch(e){st.textContent=e.message}
 }
 function initWardrobeExtras(){
+  const det=$('shortcutCode')&&$('shortcutCode').closest('details');if(det)det.addEventListener('toggle',()=>{if(det.open)prefetchShortcutCode()});
   $('productPhoto').onchange=e=>chooseProductPhoto(e.target.files[0]);
   $('carePhoto').onchange=e=>chooseCarePhoto(e.target.files[0]);
   $('productFile').onchange=async e=>{

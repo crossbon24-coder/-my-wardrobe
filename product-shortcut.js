@@ -1,6 +1,6 @@
 /* Paste this entire file into Shortcuts: Run JavaScript on Webpage.
  * Reads only product metadata from the open page. No network requests or page changes.
- * See SHORTCUT.md for the native image download and clipboard actions.
+ * 사진 내려받기·클립보드 동작은 shortcut-help.html(단축어 설정 안내)을 보세요.
  */
 (function () {
   function text(value, limit) {
@@ -40,7 +40,8 @@
   const product = {
     name: text(p.name || meta('og:title') || document.title),
     brand: text(typeof p.brand === 'object' ? p.brand?.name : p.brand),
-    url: pageUrl,
+    // 대표 주소(canonical)는 지금 보는 페이지와 같은 경로일 때만 쓴다. 추적 꼬리표만 빼고 나머지 쿼리(옵션 번호 등)는 원문 그대로 둔다
+    url: (u => { try { const x = new URL(u); if (!x.search) return x.href; const kept = x.search.slice(1).split('&').filter(q => q && !/^(utm_[a-z_]*|fbclid|gclid|igshid|mc_[a-z_]*|_hs[a-z_]*|ref_?src|srsltid)$/i.test((k => { try { return decodeURIComponent(k); } catch (_) { return k; } })(q.split('=')[0]))); x.search = kept.length ? '?' + kept.join('&') : ''; return x.href; } catch (_) { return u; } })((() => { try { const a = new URL(canonical || ''), b = new URL(pageUrl); return canonical && a.origin === b.origin && a.pathname === b.pathname ? canonical : pageUrl; } catch (_) { return pageUrl; } })()),
     material: text(p.material), color: text(p.color), size: text(p.size), sku: text(p.sku),
     description: text(p.description || meta('og:description'), 4000),
     listedPrice: text(offer.price), currency: text(offer.priceCurrency, 20)
