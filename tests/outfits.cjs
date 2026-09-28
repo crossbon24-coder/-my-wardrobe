@@ -235,14 +235,15 @@ async function check(name, fn) {
     assert.deepEqual(r, { empty: false, unsaved: true, saved: false, changed: true });
   });
 
-  await check('Recommendation result gets a 코디 탭에 담기 button that fills the outfit slots', async page => {
+  await check('Each recommended combo has a 코디 탭에 담기 button that fills the outfit slots with that combo', async page => {
     const r = await page.evaluate(async () => {
       await basic(); goto('코디 추천'); recommend(); await sleep(50);
-      const btn = document.getElementById('ofRecBtn'); const ids = currentRecommendation.slice(); btn.click(); await sleep(50);
+      const btns = document.querySelectorAll('#result .recuse'), n = Object.values(recommendations[btns.length - 1].slots).filter(Boolean).length;
+      btns[btns.length - 1].click(); await sleep(50);
       const imgs = document.querySelectorAll('#outfit .card .fl-tile img').length;
-      return { btn: !!btn, tab: document.getElementById('outfit').classList.contains('active'), imgs, n: ids.length };
+      return { combos: btns.length, tab: document.getElementById('outfit').classList.contains('active'), imgs, n };
     });
-    assert.equal(r.btn, true); assert.equal(r.tab, true); assert.equal(r.imgs, r.n);
+    assert.ok(r.combos >= 1); assert.equal(r.tab, true); assert.equal(r.imgs, r.n);
   });
 
   await check('Closet sort reorders cards by data and keeps search working after reordering', async page => {

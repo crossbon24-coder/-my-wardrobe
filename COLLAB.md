@@ -32,12 +32,15 @@
 | id | string | crypto.randomUUID() |
 | name | string | 코디 이름. 비면 "코디 n" |
 | slots | object | {outer, top, bottom, shoes, bag, acc} 각각 clothes.id 또는 null. bag은 v4.3 선택 칸(없으면 null), acc는 액세서리. v4.2 이전 코디의 acc에는 가방이 있을 수 있다 |
+| updatedAt | number(ms), 선택 | v4.5. 이름·칸을 바꿀 때만 찍는다(착용 기록 변경은 찍지 않음). 합치기에서 더 최근 쪽을 고르는 기준. clothes에도 같은 뜻으로 쓴다 |
 | createdAt | number(ms) | clothes와 같은 기준 |
 | worn | string[] | 입은 날짜 "YYYY-MM-DD"(현지 날짜), 중복 없이 오름차순 |
 
 코디에 "오늘 입음"을 기록하면 worn에 날짜를 넣는 동시에 구성 옷들의 wearCount를 1 올리고 lastWorn을 갱신한다. 그래야 기존 추천 점수(마지막 착용 경과)가 코디 기록과 함께 움직인다. 같은 날 이미 센 옷(같은 현지 날짜의 lastWorn 또는 같은 날짜의 다른 코디)은 wearCount를 다시 올리지 않는다. 미래 날짜는 기록하지 않는다.
 
 끊긴 참조: 복원(교체)이나 옷 삭제로 slots에 없는 옷 id가 남을 수 있다. 화면은 빈 칸으로 보이고, 저장할 때는 있는 옷만 넣는다(outfits.js). 옷 삭제 기능을 넣을 때는 clothes 삭제와 해당 slots의 null 처리를 한 트랜잭션에서 한다. 보관은 선택 필드 archived:true로 하고, 보관한 옷은 고르기 시트에서 숨긴다(v4.3 반영).
+
+삭제 표시(v4.5): 옷·코디 삭제와 캘린더 기록 삭제는 localStorage 'wardrobe.tombstones'에 {c,o,w} 시각으로 남기고 백업 파일 최상위 tombstones로 내보낸다. 합치기는 이 표시로 지운 것을 되살리지 않고, 다른 기기에서 지운 것을 여기서도 지운다. 백업 형식의 나머지는 그대로다.
 
 ## 4. Claude가 만들 코디 기능(outfits.js) 요약
 
@@ -65,6 +68,7 @@
 | 2026-09-27 | Claude | 사용자 요청으로 전체 검토(7개 관점, 발견마다 두 검증자). 확인 79건. Claude 담당과 공동 항목의 Claude 쪽을 v4.3으로 반영(outfits.js, tests/outfits.cjs 20개 신설, .gitignore, 버전 표기). index.html은 버전 표기만 바꿈. 3절 계약에 bag 칸·같은 날 집계·끊긴 참조·archived를 추가. GPT에게 7절 표 순서대로 요청. 9월 7일 v4.1/v4.2 index.html 긴급 수정 검토 요청은 아직 응답 없음 |
 | 2026-09-27 | Claude | 사용자 결정 3건 반영: v31.html·category-v356.js 삭제, 실명 제거·커밋 작성자 noreply로 변경, GitHub Actions(tests.yml) 추가. Playwright 기본 Chromium(CI와 같은 조건)으로 regression 37개·outfits 20개 통과 확인. 앱 코드는 바뀌지 않아 버전은 4.3 유지 |
 | 2026-09-28 | Claude | 사용자 결정: 7절 GPT 요청을 Claude가 맡는다. 1차 묶음 v4.4 — 저장 안내·persist·마지막 백업, 백업 사진 확인·조각 Blob·iPhone 공유 시트·현지 날짜, 옷 보관/삭제(한 트랜잭션), 사진 바꾸기, 수정 창 바깥 탭·업데이트 전 확인, 옷장 오늘 입음 하루 한 번·되돌리기, 사진 추가 이어 붙이기·중복 건너뛰기·목록 비우기, 입력칸 16px, 뒤로 가기 캐시 URL 유지, 날짜 넘김 다시 그리기. 변경 후 4관점 반박 검토 확인 16건 반영. 검사 regression 37·outfits 20·features 28 통과. regression.cjs는 'Unavailable CDN' 검사 앞 batch=[] 한 줄만 바꿈(사진 추가 의미 변경 때문) |
+| 2026-09-28 | Claude | 2차 묶음 v4.5(7절 10~12번): 추천 3조합·아우터·가방·다른 추천·코디 탭 채우기, 백업 합치기(updatedAt·삭제 표시·충돌 확인·트랜잭션 재읽기), 등록 화면 재배치·입력 중 다시 그리기 미루기·빠진 줄 표시·진단은 ?debug=1. 변경 후 3관점 반박 검토 확인 20건 반영(착용 기록이 수정 시각을 찍어 합치기에서 수정이 되돌아가던 문제 등). 검사 regression 37·outfits 20·features 44 통과 |
 
 ## 6. 현재 작업 중
 
@@ -74,13 +78,13 @@
 
 | 작업자 | 파일 | 내용 | 시작 | 상태 |
 |---|---|---|---|---|
-| Claude | index.html, outfits.js, tests/ | 사용자 결정(2026-09-28)으로 7절 GPT 요청 목록을 Claude가 맡음. 1차(1~9번) 완료(v4.4), 2차(10~12번)·3차(13~15번) 남음 | 2026-09-28 | 진행 중. GPT는 사용자가 다시 지시할 때까지 이 저장소를 수정하지 않는다 |
+| Claude | index.html, outfits.js, wardrobe-import.js, tests/ | 사용자 결정(2026-09-28)으로 7절 GPT 요청 목록을 Claude가 맡음. 1차(1~9번) v4.4, 2차(10~12번) v4.5 완료, 3차(13~15번) 남음 | 2026-09-28 | 진행 중. GPT는 사용자가 다시 지시할 때까지 이 저장소를 수정하지 않는다 |
 
 ## 7. 2026-09-27 전체 검토 — 남은 일과 담당
 
 검토 결과 원자료(발견별 근거·재현 수치)는 Claude 쪽 작업 기록에 있고, 요약만 적는다. id는 검토 때 붙인 번호다. Claude 담당·공동 항목의 Claude 쪽은 v4.3에서 반영했다(PROJECT.md v4.3 절).
 
-GPT에게 요청(우선순위 순) — 2026-09-28부터 Claude가 처리 중. 1~9번은 v4.4에서 반영(8번의 등록 목록 보존 critic-2는 남음)
+GPT에게 요청(우선순위 순) — 2026-09-28부터 Claude가 처리 중. 1~9번은 v4.4, 10~12번은 v4.5에서 반영(8번의 등록 목록 보존 critic-2, 10번의 복수 계절 critic-8은 남음)
 
 | 순서 | id | 내용 | 비고 |
 |---|---|---|---|

@@ -63,7 +63,7 @@
     if(editId&&!outfits.some(o=>o.id===editId)){editId=null;changed=true}
     if(changed)persistDraft();
   }
-  function setDraft(next,name,id){draft={...EMPTY,...next};if(name!==undefined)draftName=name;if(id!==undefined)editId=id;persistDraft()}
+  function setDraft(next,name,id){draft={...EMPTY,...next};if(name!==undefined)draftName=name;if(id!==undefined)editId=id;persistDraft();outfitDirty=true} // 화면에 반영되기 전까지 다시 그릴 대상
 
   // ---------- 화면 조각 ----------
   function tileHTML(slotKey,label,item,opts){
@@ -120,6 +120,7 @@
       :`<button type="button" ${saving?'disabled':''} onclick="OF.save()">저장</button>`;
     return `<div class="card"><h2>코디 만들기</h2>
         ${editing?`<p class="small of-editing">저장된 코디 <b>${esc(norm(editing).name)}</b>을(를) 고치는 중입니다. 칸을 바꾼 뒤 '덮어쓰기'를 누르세요. <button type="button" class="ghost" onclick="OF.clearAll()">새 코디 시작</button></p>`:'<p class="small">칸을 눌러 옷을 고르세요. 옷장에서 옷 사진을 누르고 \'코디에 담기\'로도 넣을 수 있습니다. 아우터·가방·액세서리는 비워도 됩니다.</p>'}
+        <div class="row" style="margin-bottom:10px"><button type="button" class="secondary" onclick="OF.fillRec()">추천으로 채우기</button></div>
         ${flatLayHTML(draft,{editable:true})}
         <input id="outfitName" style="margin-top:12px" placeholder="코디 이름 (비우면 날짜로)" value="${esc(draftName)}" oninput="OF.name(this.value)" aria-label="코디 이름">
         <div class="row" style="margin-top:4px">${btns}<button type="button" class="secondary" onclick="OF.clearAll()">비우기</button></div>
@@ -210,8 +211,8 @@
       let savedId=target?target.id:null,overwrote=false;
       await transaction(['outfits'],'readwrite',tx=>{
         const os=tx.objectStore('outfits');
-        if(target){const q=os.get(target.id);q.onsuccess=()=>{if(q.result){os.put({...q.result,name,slots});overwrote=true}else{savedId=crypto.randomUUID();os.add({id:savedId,name,slots,createdAt:Date.now(),worn:[]})}}}
-        else{savedId=crypto.randomUUID();os.add({id:savedId,name,slots,createdAt:Date.now(),worn:[]})}
+        if(target){const q=os.get(target.id);q.onsuccess=()=>{if(q.result){os.put({...q.result,name,slots,updatedAt:Date.now()});overwrote=true}else{savedId=crypto.randomUUID();os.add({id:savedId,name,slots,createdAt:Date.now(),updatedAt:Date.now(),worn:[]})}}}
+        else{savedId=crypto.randomUUID();os.add({id:savedId,name,slots,createdAt:Date.now(),updatedAt:Date.now(),worn:[]})}
       });
       // 저장한 코디를 계속 편집 대상으로 둔다: 다시 누르면 복제가 아니라 덮어쓰기
       setDraft(slots,name,savedId);saving=false;await refreshOutfits();
@@ -222,13 +223,13 @@
   async function renameOutfit(id){
     const o=outfits.find(x=>x.id===id);if(!o)return;
     const v=prompt('코디 이름',norm(o).name);if(v===null)return;const name=v.trim();if(!name)return say('이름을 입력해주세요');
-    try{await transaction(['outfits'],'readwrite',tx=>{const os=tx.objectStore('outfits'),q=os.get(id);q.onsuccess=()=>{if(q.result)os.put({...q.result,name})}});if(editId===id){draftName=name;persistDraft()}await refreshOutfits();say('이름을 바꿨습니다')}
+    try{await transaction(['outfits'],'readwrite',tx=>{const os=tx.objectStore('outfits'),q=os.get(id);q.onsuccess=()=>{if(q.result)os.put({...q.result,name,updatedAt:Date.now()})}});if(editId===id){draftName=name;persistDraft()}await refreshOutfits();say('이름을 바꿨습니다')}
     catch(e){reportError(e,'이름을 바꾸지 못했습니다.')}
   }
   async function deleteOutfit(id){
     const o=outfits.find(x=>x.id===id);
     if(!confirm(`'${o?norm(o).name:'이 코디'}'를 삭제할까요? 옷은 그대로 남고, 이 코디의 착용 기록(캘린더)은 사라집니다.`))return;
-    try{await transaction(['outfits'],'readwrite',tx=>{tx.objectStore('outfits').delete(id)});if(editId===id){editId=null;persistDraft()}await refreshOutfits();say('삭제했습니다')}
+    try{await transaction(['outfits'],'readwrite',tx=>{tx.objectStore('outfits').delete(id)});if(typeof addTomb==='function')addTomb('o',id);if(editId===id){editId=null;persistDraft()}await refreshOutfits();say('삭제했습니다')}
     catch(e){reportError(e,'삭제하지 못했습니다.')}
   }
   async function markWorn(id,date){
@@ -242,7 +243,7 @@
           const all=q.result||[],o=all.find(x=>x.id===id);if(!o)return;found=true;
           const worn=Array.isArray(o.worn)?o.worn.filter(isDate):[];
           if(worn.includes(date)){dup=true;return} // 같은 날 재기록은 아무것도 바꾸지 않는다
-          os.put({...o,worn:[...new Set([...worn,date])].sort()});
+          os.put({...o,worn:[...new Set([...worn,date])].sort()});if(typeof clearTomb==='function')clearTomb('w',`${id}|${date}`);
           // 같은 날 다른 코디로 이미 센 옷은 wearCount를 다시 올리지 않는다
           const counted=new Set();for(const x of all)if(x.id!==id&&Array.isArray(x.worn)&&x.worn.includes(date))slotIds(norm(x)).forEach(c=>counted.add(c));
           const ts=date===today()?Date.now():dateMs(date);
@@ -257,7 +258,7 @@
   }
   async function unmarkWorn(id,date){
     try{
-      await transaction(['outfits'],'readwrite',tx=>{const os=tx.objectStore('outfits'),q=os.get(id);q.onsuccess=()=>{const o=q.result;if(o)os.put({...o,worn:(Array.isArray(o.worn)?o.worn:[]).filter(d=>d!==date)})}});
+      await transaction(['outfits'],'readwrite',tx=>{const os=tx.objectStore('outfits'),q=os.get(id);q.onsuccess=()=>{const o=q.result;if(o)os.put({...o,worn:(Array.isArray(o.worn)?o.worn:[]).filter(d=>d!==date)})}});if(typeof addTomb==='function')addTomb('w',`${id}|${date}`);
       await refreshOutfits();say('기록을 지웠습니다. 옷의 착용 횟수는 그대로 둡니다.');
     }catch(e){reportError(e,'기록을 지우지 못했습니다.')}
   }
@@ -279,21 +280,27 @@
     if(btn)showPage('outfit',btn);else refreshOutfitView();
     window.scrollTo(0,0);say(`${SLOTS.find(s=>s.key===slot).label} 칸에 담았습니다`);
   }
-  function recommendationToOutfit(){
-    const ids=typeof currentRecommendation!=='undefined'&&Array.isArray(currentRecommendation)?currentRecommendation:[];
-    const next={...EMPTY};for(const id of ids){const c=byId(id);const k=c&&SLOT_BY_CAT[c.category];if(k&&!next[k])next[k]=id}
-    if(!Object.values(next).some(Boolean))return say('담을 추천 결과가 없습니다');
-    if(OF.hasDraft()&&!confirm('만들던 코디 초안을 추천 결과로 바꿀까요?'))return;
-    setDraft(next,'',null);
-    const btn=[...document.querySelectorAll('nav button')].find(b=>(b.getAttribute('onclick')||'').includes("'outfit'"));
-    if(btn)showPage('outfit',btn);else refreshOutfitView();
-    window.scrollTo(0,0);say('추천을 코디 칸에 담았습니다. 바꿀 칸을 누른 뒤 저장하세요.');
+  function gotoOutfitTab(){const btn=[...document.querySelectorAll('nav button')].find(b=>(b.getAttribute('onclick')||'').includes("'outfit'"));if(btn)showPage('outfit',btn);else refreshOutfitView();window.scrollTo(0,0)}
+  function useRec(slots,noAsk){
+    const next={...EMPTY};for(const k in EMPTY){const id=slots&&slots[k];next[k]=id&&byId(id)?id:null}
+    if(!Object.values(next).some(Boolean)){say('담을 추천 결과가 없습니다');return false}
+    if(!noAsk&&OF.hasDraft()&&!confirm('만들던 코디 초안을 추천 결과로 바꿀까요?'))return false;
+    setDraft(next,'',null);gotoOutfitTab();say('추천을 코디 칸에 담았습니다. 바꿀 칸을 누른 뒤 저장하세요.');return true;
   }
-  function installRecommendHook(){
-    if(typeof window.recommend!=='function'||window.recommend.ofWrapped)return;
-    const base=window.recommend;
-    const wrapped=function(){const r=base.apply(this,arguments);safe(()=>{const box=$('result');if(!box||!box.querySelector('.recgrid'))return;const b=document.createElement('button');b.type='button';b.id='ofRecBtn';b.textContent='코디 탭에 담기';b.style.width='100%';b.style.marginTop='10px';b.onclick=recommendationToOutfit;box.appendChild(b)},'추천 연결');return r};
-    wrapped.ofWrapped=true;window.recommend=wrapped;
+  // 코디 탭 '추천으로 채우기': 코디 추천 탭의 목적·날씨 설정으로 가장 좋은 조합부터, 누를 때마다 상의·하의가 다른 조합(설정마다 따로 기억)
+  let fill={key:'',seen:new Set(),avoid:{tops:new Set(),bottoms:new Set(),items:new Set()},last:null};
+  const sameSlots=(a,b)=>!!a&&!!b&&Object.keys(EMPTY).every(k=>(a[k]||null)===(b[k]||null));
+  function fillRec(){
+    if(typeof recommendCombos!=='function')return;
+    const oc=$('occasion'),we=$('weather'),t=oc?+oc.value:2,w=we?we.value:'normal',key=t+'|'+w;
+    if(fill.key!==key)fill={key,seen:new Set(),avoid:{tops:new Set(),bottoms:new Set(),items:new Set()},last:null};
+    let r=recommendCombos(t,w,fill.seen,1,fill.avoid);
+    if(!r.length&&fill.seen.size){fill.seen=new Set();fill.avoid={tops:new Set(),bottoms:new Set(),items:new Set()};r=recommendCombos(t,w,fill.seen,1,fill.avoid)}
+    if(!r.length)return say('상의와 하의를 먼저 등록해주세요');
+    const fromFill=sameSlots(draft,fill.last); // 방금 채운 그대로면 묻지 않고 바꾼다
+    if(!useRec(r[0].slots,fromFill))return;
+    const s=r[0].slots;fill.seen.add(r[0].key);fill.avoid.tops.add(s.top);fill.avoid.bottoms.add(s.bottom);fill.last={...EMPTY,...s};
+    const lab=el=>el&&el.selectedOptions&&el.selectedOptions[0]?el.selectedOptions[0].textContent:'';say(`추천 조합을 채웠습니다(${lab(oc)} · ${lab(we)}). 다시 누르면 다른 조합입니다.`);
   }
   function installEditButton(){
     const save=$('editSaveBtn');if(!save||$('ofAddBtn'))return;
@@ -430,6 +437,12 @@
     chooseWorn(id){const d=addWornFor;addWornFor=null;$('wornModal').classList.remove('open');if(d)locked(()=>markWorn(id,d))},
     closeWorn(){addWornFor=null;$('wornModal').classList.remove('open')},
     addToOutfit,
+    editState(){return editId?{id:editId,clean:!OF.hasDraft()}:null},
+    // 합치기 뒤: 고치던 코디가 바뀌었으면, 초안이 저장본 그대로였으면 새 내용으로 다시 채우고, 고치던 중이었으면 새 코디로 떼어 둔다
+    afterMerge(ed,changed){if(!ed||!changed.has(ed.id)||editId!==ed.id)return;const o=outfits.find(x=>x.id===ed.id);if(!o)return;
+      if(ed.clean){const n=norm(o);setDraft(n.slots,n.name,o.id)}else{editId=null;persistDraft();say('다른 기기에서 바뀐 코디라, 고치던 내용은 새 코디로 두었습니다')}refreshOutfitView()},
+    useRec,
+    fillRec,
     // 업데이트·새로고침 전에 index.html이 물어볼 수 있게: 저장하지 않은 코디 초안이 있는지
     hasDraft(){const saved=editId?outfits.find(o=>o.id===editId):null;if(!Object.values(draft).some(Boolean))return false;if(!saved)return true;const n=norm(saved);return Object.keys(EMPTY).some(k=>(n.slots[k]||null)!==(draft[k]||null))||(draftName.trim()&&draftName.trim()!==n.name)},
     get errors(){return renderErrors}
@@ -437,7 +450,7 @@
 
   function init(){
     try{dense=localStorage.getItem('wardrobe.dense')==='1';closetSort=localStorage.getItem('wardrobe.closetSort')||'recent'}catch{}
-    injectCSS();ensureDOM();installClosetTools();installEditButton();installRecommendHook();restoreDraft();
+    injectCSS();ensureDOM();installClosetTools();installEditButton();restoreDraft();
     const baseRender=window.render;
     window.render=function(){
       baseRender.apply(this,arguments);
