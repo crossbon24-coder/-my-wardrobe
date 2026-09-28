@@ -133,7 +133,7 @@ async function productFromText(raw){
   if(!text)throw new Error('붙여 넣은 내용이 없습니다. 단축어를 실행한 뒤 다시 붙여 넣어주세요.');
   if(text.length>PRODUCT_LIMIT)throw new Error('등록 파일이 너무 큽니다. 사진 크기를 줄여주세요.');
   if(looksHTML(text)){if(text.length>PAGE_LIMIT)throw new Error(PAGE_BIG);return parseProductPackage(await productFromHTML(text))}
-  if(text.startsWith('{'))return parseProductPackage(text);
+  if(text.startsWith('{')){try{return parseProductPackage(text)}catch(e){const b=text.lastIndexOf('}');if(b>0&&b<text.length-1){try{return parseProductPackage(text.slice(0,b+1))}catch{}}throw e}} // 뒤에 사진 주소 줄 등이 붙은 경우도 살린다
   // 쇼핑몰 앱 공유용 단축어는 상품 페이지 원문을 Base64로 넘긴다(단축어가 원문을 바꾸지 않게)
   if(looksB64(text)){
     if(text.length>PAGE_LIMIT*1.4)throw new Error(PAGE_BIG);
@@ -147,7 +147,17 @@ async function productFromText(raw){
     let html;try{html=await fetchProductPage(link)}catch(e){throw new Error(e?.message&&/인코딩|너무 큽니다/.test(e.message)?e.message:LINK_HELP)}
     return parseProductPackage(await productFromHTML(html,cleanProductURL(link)));
   }
-  throw new Error('상품 정보가 아닙니다. 쇼핑몰에서 단축어를 실행한 뒤 붙여 넣어주세요.');
+  // 앞뒤에 다른 글이 붙은 JSON(예: '사전 값 가져오기'를 '모든 값'으로 두어 사진 주소 줄이 붙은 경우)
+  const a=text.indexOf('{'),b=text.lastIndexOf('}');
+  if(a>=0&&b>a){try{return parseProductPackage(text.slice(a,b+1))}catch{}}
+  throw new Error(shortcutMistake(text));
+}
+// 단축어 설정 실수를 글 모양으로 알아본다. 받은 글 앞부분도 보여 줘 사용자가 무엇이 복사됐는지 알 수 있게 한다
+function shortcutMistake(text){
+  const head=text.replace(/\s+/g,' ').slice(0,60),seen=` (받은 글 ${text.length}자: "${head}${text.length>60?'…':''}")`;
+  if(/^(metadata|imageUrl)(\s+(metadata|imageUrl))*$/i.test(text.replace(/\s+/g,' ').trim()))return "단축어의 '사전 값 가져오기'가 '모든 키'로 되어 있습니다. '값'을 고르고 키에 metadata를 넣어주세요."+seen;
+  if(/^(true|false|null|undefined|\d+)$/i.test(text.trim()))return "단축어의 '사전 값 가져오기' 키가 metadata인지, 입력이 'JavaScript 결과'인지 확인해주세요."+seen;
+  return "상품 정보가 아닙니다. 단축어의 '클립보드에 복사' 입력이 '사전 값'(metadata)인지 확인해주세요."+seen;
 }
 // 사진 받기: 서버가 알려 주는 형식 대신 파일 앞부분으로 JPEG·PNG·WebP를 판별한다(형식을 잘못 알려 주는 서버가 있음)
 function sniffImage(b){

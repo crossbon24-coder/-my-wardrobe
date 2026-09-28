@@ -1099,6 +1099,18 @@ async function check(name, fn, opts) {
     assert.match(r, /불러오지 못했습니다/);
   }, { block: ['/wardrobe-import.js'] });
 
+  await check('Shortcut mistakes are named: "all keys" gives metadata/imageUrl words; "all values" (JSON line + photo line) still imports; other text shows what was received', async page => {
+    const r = await page.evaluate(async () => {
+      const meta = JSON.stringify({ app: 'my-wardrobe-product', version: 1, product: { name: '모든 값 셔츠' }, imageUrl: 'https://example.test/a.jpg' });
+      const out = {};
+      for (const [k, v] of [['keys', 'metadata\nimageUrl'], ['values', meta + '\nhttps://example.test/a.jpg'], ['title', '울 니트 - 무신사']]) {
+        try { const d = await productFromText(v); out[k] = 'ok:' + d.product.name; } catch (e) { out[k] = e.message; }
+      }
+      return out;
+    });
+    assert.match(r.keys, /'모든 키'로 되어 있습니다/); assert.equal(r.values, 'ok:모든 값 셔츠'); assert.match(r.title, /받은 글 \d+자: "울 니트 - 무신사"/);
+  });
+
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {
     const r = await page.evaluate(async () => {
       await basic(); const n = imageURLs.size;
