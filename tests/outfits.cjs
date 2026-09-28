@@ -14,12 +14,12 @@ const server = createServer((req, res) => {
   // 저장소 안의 정적 파일은 모두 제공한다(허용 목록을 두지 않아 새 파일이 404로 숨는 일이 없다)
   if (!file.startsWith(root) || file.includes(`${root}\\.git`) || file.includes(`${root}/.git`) || !existsSync(file)) { res.writeHead(404).end(); return; }
   const ext = extname(file);
-  res.setHeader('Content-Type', ext === '.json' ? 'application/json' : ext === '.js' ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8');
+  res.setHeader('Content-Type', ext === '.json' ? 'application/json' : ext === '.js' ? 'text/javascript; charset=utf-8' : ext === '.png' ? 'image/png' : ext === '.webmanifest' ? 'application/manifest+json' : 'text/html; charset=utf-8');
   res.end(readFileSync(file));
 });
 let browser, passed = 0, failed = 0;
-async function fresh() {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+async function fresh(opts = {}) {
+  const context = await browser.newContext({ serviceWorkers: opts.sw ? 'allow' : 'block', viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));

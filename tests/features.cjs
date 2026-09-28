@@ -9,24 +9,28 @@ const { readFileSync, existsSync } = require('node:fs');
 const { join, normalize, extname } = require('node:path');
 const assert = require('node:assert/strict');
 const root = normalize(join(__dirname, '..'));
+let slowMs = 0; // >0이면 앱 화면(/, /index.html) 응답을 그만큼 늦춘다(약한 신호 흉내)
 const server = createServer((req, res) => {
   const path = decodeURIComponent(req.url.split('?')[0]);
+  if (slowMs && (path === '/' || path === '/index.html')) { const ms = slowMs; setTimeout(() => { if (!res.destroyed) { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(readFileSync(join(root, 'index.html'))); } }, ms); return; }
   const file = normalize(join(root, path === '/' ? 'index.html' : path.slice(1)));
   if (!file.startsWith(root) || file.includes(`${root}\\.git`) || file.includes(`${root}/.git`) || !existsSync(file)) { res.writeHead(404).end(); return; }
   const ext = extname(file);
-  res.setHeader('Content-Type', ext === '.json' ? 'application/json' : ext === '.js' ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8');
+  res.setHeader('Content-Type', ext === '.json' ? 'application/json' : ext === '.js' ? 'text/javascript; charset=utf-8' : ext === '.png' ? 'image/png' : ext === '.webmanifest' ? 'application/manifest+json' : 'text/html; charset=utf-8');
   res.end(readFileSync(file));
 });
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1';
 let browser, passed = 0, failed = 0;
 async function fresh(opts = {}) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, ...(opts.iphone ? { userAgent: IPHONE } : {}), ...(opts.tz ? { timezoneId: opts.tz } : {}) });
+  const context = await browser.newContext({ serviceWorkers: opts.sw ? 'allow' : 'block', viewport: { width: 390, height: 844 }, ...(opts.iphone ? { userAgent: IPHONE } : {}), ...(opts.tz ? { timezoneId: opts.tz } : {}) });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
-  // 외부 https(모델 CDN 등)는 일부러 막으므로 그 '불러오기 실패' 콘솔 메시지만 예상된 것으로 거른다
-  page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource: net::ERR_FAILED/.test(m.text())) errors.push('console: ' + m.text()); });
+  // 외부 https(모델 CDN 등)는 일부러 막고, 오프라인 검사는 일부러 실패할 요청을 보내므로 그 '불러오기 실패' 콘솔 메시지만 예상된 것으로 거른다
+  page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource: net::(ERR_FAILED|ERR_INTERNET_DISCONNECTED)/.test(m.text())) errors.push('console: ' + m.text()); });
   await page.route('https://**/*', route => route.abort());
+  for (const b of opts.block || []) await page.route(u => u.pathname === b, route => route.abort());
+  if (opts.standalone) await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { configurable: true, value: true }));
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(() => /옷 \d+벌/.test(document.getElementById('summary').textContent) && window.OF);
   await page.evaluate(() => {
@@ -56,7 +60,7 @@ async function fresh(opts = {}) {
 }
 async function check(name, fn, opts) {
   const t = await fresh(opts);
-  try { await fn(t.page); assert.deepEqual(t.errors, [], 'runtime errors'); console.log('PASS', name); passed++; }
+  try { await fn(t.page, t.context); assert.deepEqual(t.errors, [], 'runtime errors'); console.log('PASS', name); passed++; }
   catch (e) { console.log('FAIL', name, '\n  ', e.message.split('\n').slice(0, 8).join('\n   ')); failed++; }
   finally { await t.context.close(); }
 }
@@ -592,6 +596,198 @@ async function check(name, fn, opts) {
     await page.goto(page.url().replace(/\?.*$/, '')); await page.waitForFunction(() => window.OF);
     assert.equal(await page.evaluate(() => DEBUG), true);
   });
+
+  await check('Offline: after one online visit the app shell opens with no network (service worker), and the manifest/icons are served', async (page, context) => {
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+    await page.reload(); await page.waitForFunction(() => !!navigator.serviceWorker.controller && window.OF);
+    const m = await page.evaluate(async () => { const r = await fetch('./manifest.webmanifest'); const j = await r.json(); const ic = await Promise.all(j.icons.map(i => fetch(i.src).then(r => r.ok))); return { name: j.name, start: j.start_url, icons: ic.every(Boolean), link: !!document.querySelector('link[rel=manifest]') && !!document.querySelector('link[rel=apple-touch-icon]') }; });
+    await context.setOffline(true);
+    await page.reload(); await page.waitForFunction(() => /옷 \d+벌/.test(document.getElementById('summary').textContent) && window.OF);
+    const offline = await page.evaluate(() => ({ title: document.title, nav: document.querySelectorAll('nav button').length }));
+    await context.setOffline(false);
+    assert.deepEqual(m, { name: '내 옷장', start: './', icons: true, link: true }); assert.deepEqual(offline, { title: '내 옷장', nav: 4 });
+  }, { sw: true });
+
+  await check('A closed IndexedDB connection is reopened automatically for the next write', async page => {
+    const r = await page.evaluate(async () => { await seed([{ id: 'x', category: '상의', memo: '셔츠' }]); db.close(); await wear('x'); return { count: (await clothesDB())[0].wearCount, alerts }; });
+    assert.deepEqual(r, { count: 1, alerts: [] });
+  });
+
+  await check('If wardrobe-import.js fails to load, the closet still opens and works', async page => {
+    const r = await page.evaluate(async () => { await seed([{ id: 'x', category: '상의', memo: '셔츠' }]); return { summary: document.getElementById('summary').textContent, cards: document.querySelectorAll('#items .item').length, extras: typeof initWardrobeExtras }; });
+    assert.deepEqual(r, { summary: '옷 1벌 · 저장 코디 0개', cards: 1, extras: 'undefined' });
+  }, { block: ['/wardrobe-import.js'] });
+
+  await check('Restore rejects SVG photos, malformed outfit dates/slots and non-numeric counts before touching data; legacy outfit shapes still pass', async page => {
+    const r = await page.evaluate(async () => {
+      const img = await b64(await jpeg('#111')), base = { id: 'a', image: img, category: '상의', type: '', color: '회색', season: '사계절', formality: 2, memo: '', createdAt: 1, wearCount: 0, lastWorn: null };
+      const tryIt = async o => { try { await prepareRestore({ app: 'my-wardrobe', version: '4.6', clothes: [base], outfits: [], ...o }); return 'ok'; } catch (e) { return e.message; } };
+      return {
+        svg: await tryIt({ clothes: [{ ...base, image: 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg"/>') }] }),
+        worn: await tryIt({ outfits: [{ id: 'o', name: 'x', slots: { top: 'a' }, worn: ['어제'] }] }),
+        slots: await tryIt({ outfits: [{ id: 'o', slots: { top: { x: 1 } } }] }),
+        count: await tryIt({ clothes: [{ ...base, wearCount: '3' }] }),
+        legacy: await tryIt({ outfits: [{ id: 42, legacyShape: { any: true } }] }),
+      };
+    });
+    assert.match(r.svg, /JPEG·PNG/); assert.match(r.worn, /착용 날짜/); assert.match(r.slots, /칸/); assert.match(r.count, /wearCount/); assert.equal(r.legacy, 'ok');
+  });
+
+  await check('Saving the edit sheet writes only fields the user changed (keeps a change made elsewhere, adds no empty details)', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); openEdit('t2');
+      await transaction(['clothes'], 'readwrite', tx => { const s = tx.objectStore('clothes'), q = s.get('t2'); q.onsuccess = () => s.put({ ...q.result, color: '네이비' }); });
+      document.getElementById('editMemo').value = '화이트 옥스포드'; await saveEdit();
+      const c = (await clothesDB()).find(x => x.id === 't2');
+      return { memo: c.memo, color: c.color, details: 'wardrobeDetails' in c };
+    });
+    assert.deepEqual(r, { memo: '화이트 옥스포드', color: '네이비', details: false });
+  });
+
+  await check('Product title hints: the last garment noun decides (니트 가디건 → 가디건, 부츠컷 청바지 → 데님); no garment noun abstains; only tracking parameters are dropped', async page => {
+    const names = ['데님 셔츠', '패딩 크로스백', '데님 자켓', '패딩 자켓', '청바지', '오버핏 셔츠', '크루넥 티셔츠', '가죽 로퍼', '테스트 다운 패딩', '패딩 부츠', '가방',
+      '니트 가디건', '니트 조거 팬츠', '스웨트셔츠', '폴로 셔츠', '부츠컷 청바지', '와이드 반바지', '후드 자켓', '데님 팬츠', 'Denim Shirt', 'Puffer Jacket', '울 코트'];
+    const r = await page.evaluate(names => ({
+      t: names.map(n => { const x = productTitleSuggestion(n); return x.category ? x.category + '·' + (x.type || '-') : '보류'; }),
+      url: productMetadata({ url: 'https://shop.example/p/1?color=navy&utm_source=ig&fbclid=abc&gclid=z&opt=a%2Cb' }).url,
+      bad: productMetadata({ url: 'https://shop.example/p/2?%E0%A4%A=1&utm_medium=x' }).url,
+    }), names);
+    assert.deepEqual(r.t, ['상의·셔츠', '가방·크로스백', '아우터·재킷', '아우터·패딩', '하의·데님', '상의·셔츠', '상의·티셔츠', '신발·로퍼', '아우터·패딩', '신발·부츠', '보류',
+      '아우터·가디건', '하의·-', '상의·맨투맨', '상의·폴로', '하의·데님', '하의·쇼츠', '아우터·재킷', '하의·데님', '상의·셔츠', '아우터·패딩', '아우터·코트']);
+    assert.equal(r.url, 'https://shop.example/p/1?color=navy&opt=a%2Cb');
+    assert.equal(r.bad, 'https://shop.example/p/2?%E0%A4%A=1');
+  });
+
+  await check('Safari extractor uses canonical only when it is the same page path, and drops only tracking parameters', async (page, context) => {
+    const p = await context.newPage(), code = readFileSync(join(root, 'product-shortcut.js'), 'utf8'), o = `http://127.0.0.1:${server.address().port}`;
+    await p.goto(`${o}/shortcut-help.html?id=3&utm_source=ig&fbclid=z`);
+    const run = canonical => p.evaluate(([code, canonical]) => new Promise(resolve => {
+      document.querySelectorAll('link[rel=canonical]').forEach(l => l.remove());
+      if (canonical) { const l = document.createElement('link'); l.rel = 'canonical'; l.href = canonical; document.head.append(l); }
+      window.completion = out => resolve(JSON.parse(out.metadata).product.url); (0, eval)(code);
+    }), [code, canonical]);
+    const r = { none: await run(''), other: await run('https://other.example/product/9'), list: await run(`${o}/category/list`), same: await run(`${o}/shortcut-help.html?utm_medium=a&opt=a%2Cb`) };
+    await p.close();
+    assert.deepEqual(r, { none: `${o}/shortcut-help.html?id=3`, other: `${o}/shortcut-help.html?id=3`, list: `${o}/shortcut-help.html?id=3`, same: `${o}/shortcut-help.html?opt=a%2Cb` });
+  });
+
+  await check('Shortcut code is fetched when the setup box opens and copied on the first tap', async page => {
+    const r = await page.evaluate(async () => {
+      let copied = ''; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async t => { copied = t; } } });
+      goto('옷 등록'); document.getElementById('productCard').open = true; const det = document.getElementById('shortcutCode').closest('details'); det.open = true; await sleep(300);
+      await copyShortcutScript();
+      return { ok: copied.includes('my-wardrobe-product'), status: document.getElementById('shortcutStatus').textContent };
+    });
+    assert.deepEqual(r, { ok: true, status: '단축어 코드를 복사했습니다.' });
+  });
+
+  await check('In the home-screen app the shortcut help opens in the same window (not Safari) and no Safari-tab warning shows', async page => {
+    const r = await page.evaluate(async () => { await basic(); return { target: document.getElementById('shortcutHelpLink').getAttribute('target'), tabWarn: document.getElementById('safety').innerText.includes('Safari 탭') }; });
+    assert.deepEqual(r, { target: null, tabWarn: false });
+  }, { iphone: true, standalone: true });
+
+  await check('Version is the same in APP_VERSION, version.json, the visible labels and both cache-busting script URLs', async page => {
+    const r = await page.evaluate(async () => { const html = await (await fetch('./index.html', { cache: 'no-store' })).text(), v = (await (await fetch('./version.json', { cache: 'no-store' })).json()).version; return { v, app: APP_VERSION, label: html.includes(`현재 버전 <b>v${v}</b>`), foot: html.includes(`Wardrobe v${v}`), imp: html.includes(`wardrobe-import.js?v=${v}`), out: html.includes(`outfits.js?v=${v}`) }; });
+    assert.equal(r.app, r.v); assert.deepEqual([r.label, r.foot, r.imp, r.out], [true, true, true, true]);
+  });
+
+  await check('CDN model scripts are pinned and checked with integrity hashes', async page => {
+    const r = await page.evaluate(() => ({ keys: Object.keys(SRI), used: Object.keys(SRI).every(u => loadVisionModel.toString().includes(u)), sha: Object.values(SRI).every(h => /^sha384-[A-Za-z0-9+/]{64}$/.test(h)) }));
+    assert.equal(r.keys.length, 2); assert.equal(r.used, true); assert.equal(r.sha, true);
+  });
+
+  await check('Offline right after the first visit: closet and both helper scripts open from the install cache; version.json is never cached; other script versions are not substituted', async (page, context) => {
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+    await context.setOffline(true);
+    await page.reload(); await page.waitForFunction(() => /옷 \d+벌/.test(document.getElementById('summary').textContent) && window.OF);
+    const r = await page.evaluate(async () => {
+      const al = []; window.alert = t => al.push(String(t));
+      const fails = u => fetch(u).then(() => false, () => true);
+      const names = await caches.keys(), keys = (await (await caches.open(names[0])).keys()).map(k => new URL(k.url).pathname + new URL(k.url).search);
+      await checkUpdate(true);
+      return { names, v: APP_VERSION, extras: typeof initWardrobeExtras, outfits: keys.includes(`/outfits.js?v=${APP_VERSION}`), imp: keys.includes(`/wardrobe-import.js?v=${APP_VERSION}`), junk: keys.filter(k => /[?&](t|refresh)=|version\.json/.test(k)),
+        version: await fails('./version.json'), other: await fails('./outfits.js?v=0.1'), al };
+    });
+    await context.setOffline(false);
+    assert.deepEqual(r.names, [`wardrobe-shell-${r.v}`]);
+    assert.deepEqual([r.extras, r.outfits, r.imp, r.junk, r.version, r.other], ['function', true, true, [], true, true]);
+    assert.match(r.al[0] || '', /오프라인/);
+  }, { sw: true });
+
+  await check('Offline: the shortcut help page opens from cache (not the closet), and an unknown page shows an offline notice', async (page, context) => {
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+    const o = `http://127.0.0.1:${server.address().port}`;
+    await context.setOffline(true);
+    await page.goto(`${o}/shortcut-help.html`); const help = await page.title();
+    await page.goto(`${o}/nothing.html`); const nothing = await page.evaluate(() => document.body.innerText);
+    await context.setOffline(false);
+    assert.equal(help, '상품 가져오기 설정 · 내 옷장'); assert.match(nothing, /오프라인이라 이 페이지를 열 수 없습니다/);
+  }, { sw: true });
+
+  await check('Weak signal: if the app page takes longer than ~4 s the saved copy opens instead of waiting', async page => {
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+    await page.reload(); await page.waitForFunction(() => !!navigator.serviceWorker.controller && window.OF);
+    slowMs = 9000; const t0 = Date.now();
+    try { await page.reload({ waitUntil: 'domcontentloaded' }); await page.waitForFunction(() => window.OF, null, { timeout: 8000 }); } finally { slowMs = 0; }
+    const ms = Date.now() - t0;
+    assert.ok(ms >= 3500 && ms < 8000, `opened after ${ms} ms`);
+    // 강제 새로고침(refresh 값)은 옛 사본으로 끊지 않고 새 화면을 기다린다
+    slowMs = 5500; const t1 = Date.now();
+    try { await page.goto(page.url().replace(/\/?(\?.*)?$/, `/?refresh=${t1}`), { waitUntil: 'domcontentloaded', timeout: 15000 }); await page.waitForFunction(() => window.OF); } finally { slowMs = 0; }
+    const waited = Date.now() - t1;
+    assert.ok(waited >= 5000, `refresh opened after ${waited} ms`);
+  }, { sw: true });
+
+  await check('Home-screen app: tapping the shortcut help link asks first when there is unsaved work (cancel stays); with nothing unsaved it just opens', async page => {
+    const r = await page.evaluate(async () => {
+      batch.push({ id: 'draft' }); window.confirmAnswer = false;
+      document.getElementById('shortcutHelpLink').click(); await sleep(300);
+      const stayed = location.pathname.endsWith('/') || location.pathname.endsWith('/index.html');
+      batch.length = 0; return { stayed, asked: confirms.length };
+    });
+    assert.deepEqual(r, { stayed: true, asked: 1 });
+    await Promise.all([page.waitForURL(/shortcut-help\.html/), page.evaluate(() => document.getElementById('shortcutHelpLink').click())]);
+  }, { iphone: true, standalone: true });
+
+  await check('A lost IndexedDB connection does not stop the next-day redraw or the back-navigation refresh (reconnects and reads new data)', async page => {
+    const r = await page.evaluate(async () => {
+      await seed([{ id: 'x', category: '상의', memo: '셔츠' }]);
+      await transaction(['clothes'], 'readwrite', tx => { tx.objectStore('clothes').put({ ...clothes[0], id: 'y', category: '하의', memo: '바지', createdAt: 5000 }); });
+      renderedDate = '2000-01-01'; db.close(); db = null;
+      document.dispatchEvent(new Event('visibilitychange')); const redrawn = renderedDate === localDate();
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })); await sleep(600);
+      return { redrawn, cards: document.querySelectorAll('#items .item').length, db: !!db };
+    });
+    assert.deepEqual(r, { redrawn: true, cards: 2, db: true });
+  });
+
+  await check('Reconnecting shares one attempt and gives up after 8 s instead of hanging; the refresh button still works while a save looks stuck', async page => {
+    const r = await page.evaluate(async () => {
+      db.close(); db = null; const a = reopenDB(), b = reopenDB(), shared = a === b; await a;
+      const orig = openDB; openDB = () => new Promise(() => {}); db.close(); db = null;
+      const t0 = Date.now(); let msg = '';
+      try { await transaction(['clothes'], 'readonly', tx => { tx.objectStore('clothes').count(); }); } catch (e) { msg = e.message; }
+      const ms = Date.now() - t0; openDB = orig; await reopenDB();
+      mutationBusy = true; window.confirmAnswer = false; forceReload(); mutationBusy = false;
+      return { shared, msg, ms, ask: confirms.at(-1) || '' };
+    });
+    assert.equal(r.shared, true); assert.match(r.msg, /다시 열지 못했습니다/); assert.ok(r.ms >= 7500 && r.ms < 12000, `${r.ms} ms`); assert.match(r.ask, /그래도 새로고침할까요/);
+  });
+
+  await check('If wardrobe-import.js fails to load, editing a garment still opens, saves and closes; restoring details asks for a reload instead of crashing', async page => {
+    const r = await page.evaluate(async () => {
+      await seed([{ id: 'x', category: '상의', memo: '셔츠' }]);
+      openEdit('x'); const opened = document.getElementById('editModal').classList.contains('open');
+      document.getElementById('editMemo').value = '옥스포드 셔츠'; await saveEdit();
+      const c = (await clothesDB())[0], closedAfterSave = !document.getElementById('editModal').classList.contains('open');
+      openEdit('x'); const closed = closeEdit() !== false && !document.getElementById('editModal').classList.contains('open');
+      const img = await b64(await jpeg('#222')), base = { id: 'a', image: img, category: '상의', type: '', color: '회색', season: '사계절', formality: 2, memo: '', createdAt: 1, wearCount: 0, lastWorn: null };
+      const tryIt = async c => { try { await prepareRestore({ app: 'my-wardrobe', version: '4.6', clothes: [c], outfits: [] }); return 'ok'; } catch (e) { return e.message; } };
+      return { opened, memo: c.memo, details: 'wardrobeDetails' in c, closedAfterSave, closed, plain: await tryIt(base), withDetails: await tryIt({ ...base, wardrobeDetails: { product: { name: 'x' } } }), alerts };
+    });
+    assert.deepEqual({ ...r, withDetails: undefined }, { opened: true, memo: '옥스포드 셔츠', details: false, closedAfterSave: true, closed: true, plain: 'ok', withDetails: undefined, alerts: [] });
+    assert.match(r.withDetails, /새로고침한 뒤 다시 복원/);
+  }, { block: ['/wardrobe-import.js'] });
 
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {
     const r = await page.evaluate(async () => {
