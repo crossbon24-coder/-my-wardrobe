@@ -31,7 +31,8 @@ async function fresh(opts = {}) {
   await page.waitForFunction(() => /옷 \d+벌/.test(document.getElementById('summary').textContent) && window.OF);
   await page.evaluate(() => {
     window.alerts = []; window.confirms = []; window.confirmAnswer = true;
-    window.alert = t => alerts.push(String(t)); window.confirm = t => { confirms.push(String(t)); return window.confirmAnswer; };
+    window.confirmQueue = []; window.onConfirm = null;
+    window.alert = t => alerts.push(String(t)); window.confirm = t => { confirms.push(String(t)); if (window.onConfirm) window.onConfirm(String(t)); return window.confirmQueue.length ? window.confirmQueue.shift() : window.confirmAnswer; };
     window.sleep = ms => new Promise(r => setTimeout(r, ms));
     window.goto = name => [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === name).click();
     window.jpeg = async (color, size = 64) => { const c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d'); x.fillStyle = color; x.fillRect(0, 0, size, size); x.fillStyle = '#fff'; x.fillRect(size / 4, size / 4, size / 2, size / 2); return new Promise(r => c.toBlob(r, 'image/jpeg', .8)); };
@@ -163,9 +164,9 @@ async function check(name, fn, opts) {
       await exportBackup(); const parsed = JSON.parse(await got.b.text()), direct = await makeBackup();
       const same = JSON.stringify(parsed.clothes) === JSON.stringify(direct.clothes) && JSON.stringify(parsed.outfits) === JSON.stringify(direct.outfits) && parsed.app === 'my-wardrobe';
       const restorable = (await prepareRestore(parsed)).clothes.length;
-      return { name: got.name, expected: `wardrobe-backup-${localDateStr()}.json`, same, restorable, last: localStorage.getItem('wardrobe.lastBackup') === localDateStr(), info: document.getElementById('backupInfo').textContent };
+      return { name: got.name, expected: new RegExp(`^wardrobe-backup-${localDateStr()}-\\d{4}-pc\\.json$`), same, restorable, last: localStorage.getItem('wardrobe.lastBackup') === localDateStr(), info: document.getElementById('backupInfo').textContent };
     });
-    assert.equal(r.name, r.expected); assert.equal(r.same, true); assert.equal(r.restorable, 6); assert.equal(r.last, true); assert.match(r.info, /마지막 백업: \d{4}-\d{2}-\d{2} \(오늘\)/);
+    assert.match(r.name, r.expected); assert.equal(r.same, true); assert.equal(r.restorable, 6); assert.equal(r.last, true); assert.match(r.info, /마지막 백업: \d{4}-\d{2}-\d{2} \(오늘\)/);
   });
 
   await check('Backup with an unreadable photo: cancel makes nothing; confirm excludes that garment so the file stays restorable', async page => {
@@ -190,7 +191,7 @@ async function check(name, fn, opts) {
       return { visible, afterAbort, shared, downloaded, last: localStorage.getItem('wardrobe.lastBackup') === localDateStr(), hidden: document.getElementById('backupShare').hidden };
     });
     assert.equal(r.visible, true); assert.equal(r.afterAbort.last, null); assert.match(r.afterAbort.status, /취소/);
-    assert.equal(r.shared.length, 1); assert.match(r.shared[0], /^wardrobe-backup-\d{4}-\d{2}-\d{2}\.json$/); assert.equal(r.downloaded, 0); assert.equal(r.last, true); assert.equal(r.hidden, true);
+    assert.equal(r.shared.length, 1); assert.match(r.shared[0], /^wardrobe-backup-\d{4}-\d{2}-\d{2}-\d{4}-safari\.json$/); assert.equal(r.downloaded, 0); assert.equal(r.last, true); assert.equal(r.hidden, true);
   }, { iphone: true });
 
   await check('Safari-tab and backup warnings on iPhone; each can be dismissed; a fresh backup clears the backup warning', async page => {
@@ -345,7 +346,7 @@ async function check(name, fn, opts) {
   await check('Backup file name and last-backup date use the local (Korea) date even between 00:00 and 09:00', async page => {
     await page.clock.setFixedTime(new Date('2026-09-27T00:30:00+09:00'));
     const r = await page.evaluate(async () => { await basic(); let name = ''; window.downloadBlob = (b, n) => { name = n; }; await exportBackup(); return { name, last: localStorage.getItem('wardrobe.lastBackup') }; });
-    assert.deepEqual(r, { name: 'wardrobe-backup-2026-09-27.json', last: '2026-09-27' });
+    assert.deepEqual(r, { name: 'wardrobe-backup-2026-09-27-0030-pc.json', last: '2026-09-27' });
   }, { tz: 'Asia/Seoul' });
 
   await check('Delete is atomic: if emptying the outfit slots fails, the garment is not deleted either', async page => {
@@ -375,6 +376,221 @@ async function check(name, fn, opts) {
     await page.clock.setFixedTime(new Date(Date.now() + 86400000 + 3600000));
     const after = await page.evaluate(async () => { document.dispatchEvent(new Event('visibilitychange')); await sleep(50); return document.querySelector('#items .item .actions button:last-child').textContent; });
     assert.deepEqual([before, after], ['입음 ✓', '오늘 입음']);
+  });
+
+  await check('Recommend: 3 combos with distinct tops and bottoms; outer when cold or formal, bag when formal, none when hot; 다른 추천 moves on', async page => {
+    const r = await page.evaluate(async () => {
+      const specs = [];
+      for (let i = 0; i < 5; i++) specs.push({ id: 'top' + i, category: '상의', memo: '상의' + i, color: ['검정', '흰색', '회색', '네이비', '베이지'][i] });
+      for (let i = 0; i < 4; i++) specs.push({ id: 'bot' + i, category: '하의', memo: '하의' + i, color: ['검정', '블루', '베이지', '회색'][i] });
+      specs.push({ id: 'shoe', category: '신발', memo: '신발' }, { id: 'coat', category: '아우터', memo: '코트', season: '겨울' }, { id: 'bag', category: '가방', memo: '가방' });
+      await seed(specs); goto('코디 추천');
+      const set = (o, w) => { $('occasion').value = String(o); $('weather').value = w; };
+      set(1, 'normal'); recommend(); const normal = recommendations.map(c => c.slots);
+      const distinct = new Set(normal.map(x => x.top)).size === normal.length && new Set(normal.map(x => x.bottom)).size === normal.length;
+      const firstKeys = recommendations.map(c => c.key); recommend(true); const moved = recommendations.every(c => !firstKeys.includes(c.key));
+      set(1, 'cold'); recommend(); const cold = recommendations[0].slots;
+      set(3, 'normal'); recommend(); const formal = recommendations[0].slots;
+      set(3, 'hot'); recommend(); const hot = recommendations[0].slots;
+      return { n: normal.length, distinct, moved, coldOuter: cold.outer, formalOuter: formal.outer, formalBag: formal.bag, hotOuter: hot.outer, normalBag: normal[0].bag, cards: document.querySelectorAll('#result .reccard').length, allBlack: colorScore('검정', '검정'), sameChroma: colorScore('블루', '블루') };
+    });
+    assert.deepEqual(r, { n: 3, distinct: true, moved: true, coldOuter: 'coat', formalOuter: 'coat', formalBag: 'bag', hotOuter: null, normalBag: null, cards: 3, allBlack: 3, sameChroma: 2 });
+  });
+
+  await check('코디 탭 추천으로 채우기 fills the slots and gives a different combo on the next press', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); goto('코디'); await sleep(20); OF.fillRec(); await sleep(50);
+      const a = JSON.parse(localStorage.getItem('wardrobe.outfitDraft')).draft, shownA = document.querySelectorAll('#outfit .card .fl-tile img').length;
+      OF.fillRec(); await sleep(50);
+      const b = JSON.parse(localStorage.getItem('wardrobe.outfitDraft')).draft, shownB = [...document.querySelectorAll('#outfit .card .fl-tile img')].map(i => i.alt);
+      const want = Object.values(b).filter(Boolean).map(id => clothes.find(c => c.id === id).memo);
+      return { filled: !!a.top && !!a.bottom, shownA, different: a.top !== b.top || a.bottom !== b.bottom, shownMatches: JSON.stringify(shownB.sort()) === JSON.stringify(want.sort()), toast: toastText() };
+    });
+    assert.equal(r.filled, true); assert.ok(r.shownA >= 2); assert.equal(r.different, true); assert.equal(r.shownMatches, true); assert.match(r.toast, /다른 조합/);
+  });
+
+  await check('Backup merge: adds new items, newer updatedAt wins, keeps max wear stats, unions outfit worn dates; cancel changes nothing', async page => {
+    const r = await page.evaluate(async () => {
+      const img = async c => b64(await jpeg(c));
+      await seed([{ id: 'a', category: '상의', memo: '에이' }, { id: 'b', category: '하의', memo: '비 원래', wearCount: 5, lastWorn: 5000 }]);
+      await transaction(['clothes', 'outfits'], 'readwrite', tx => { const cs = tx.objectStore('clothes'), q = cs.get('b'); q.onsuccess = () => cs.put({ ...q.result, updatedAt: 100 }); tx.objectStore('outfits').put({ id: 'o1', name: '출근', slots: { top: 'a', bottom: 'b' }, createdAt: 1, updatedAt: 50, worn: ['2026-09-01'] }); });
+      await refresh();
+      const file = { app: 'my-wardrobe', version: '4.5', createdAt: new Date().toISOString(), clothes: [
+        { id: 'b', image: await img('#00f'), category: '하의', type: '', color: '블루', season: '사계절', formality: 2, memo: '비 백업', createdAt: 2, wearCount: 2, lastWorn: 9000, updatedAt: 200 },
+        { id: 'c', image: await img('#0f0'), category: '신발', type: '', color: '회색', season: '사계절', formality: 2, memo: '씨 새옷', createdAt: 3, wearCount: 0, lastWorn: null },
+      ], outfits: [{ id: 'o1', name: '출근(백업)', slots: { top: 'a', bottom: 'b' }, createdAt: 1, updatedAt: 10, worn: ['2026-09-02'] }, { id: 'o2', name: '주말', slots: { top: 'a' }, createdAt: 2, worn: [] }] };
+      const f = new File([JSON.stringify(file)], 'm.json', { type: 'application/json' });
+      confirmAnswer = false; await mergeBackup(f); const untouched = (await clothesDB()).length === 2 && (await outfitsDB()).length === 1;
+      confirmAnswer = true; await mergeBackup(new File([JSON.stringify(file)], 'm.json', { type: 'application/json' }));
+      const cs = Object.fromEntries((await clothesDB()).map(c => [c.id, c])), os = Object.fromEntries((await outfitsDB()).map(o => [o.id, o]));
+      const shownB = clothes.find(c => c.id === 'b'); const bSize = (await (await fetch(url(shownB.image))).blob()).size;
+      return { untouched, ids: Object.keys(cs).sort(), bMemo: cs.b.memo, bWear: cs.b.wearCount, bLast: cs.b.lastWorn, aMemo: cs.a.memo, o1Name: os.o1.name, o1Worn: os.o1.worn, o2: !!os.o2, shownB: bSize === cs.b.image.size, toast: toastText() };
+    });
+    assert.deepEqual(r, { untouched: true, ids: ['a', 'b', 'c'], bMemo: '비 백업', bWear: 5, bLast: 9000, aMemo: '에이', o1Name: '출근', o1Worn: ['2026-09-01', '2026-09-02'], o2: true, shownB: true, toast: '합쳤습니다: 새 옷 1벌 · 바뀐 옷 1벌 · 새 코디 1개' });
+  });
+
+  await check('Content edits and outfit saves stamp updatedAt; wear records and unchanged saves do not (merge compares content by it)', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); const t0 = Date.now();
+      openEdit('t2'); document.getElementById('editMemo').value = '새 이름'; await saveEdit(); await wear('t3'); openEdit('s1'); await saveEdit();
+      goto('코디'); OF.pick('top'); OF.choose('t1'); OF.save(); await sleep(300);
+      const cs = Object.fromEntries((await clothesDB()).map(c => [c.id, c])), [o] = await outfitsDB();
+      return { edit: cs.t2.updatedAt >= t0, wear: cs.t3.updatedAt === undefined, outfit: o.updatedAt >= t0, unchangedSave: cs.s1.updatedAt === undefined, untouched: cs.b1.updatedAt === undefined };
+    });
+    assert.deepEqual(r, { edit: true, wear: true, outfit: true, unchangedSave: true, untouched: true });
+  });
+
+  await check('Registration tab: big photo button first, shop import folded, backup in its own card, diagnostics hidden without ?debug=1', async page => {
+    const r = await page.evaluate(async () => {
+      const cards = [...document.querySelectorAll('#add > .card, #add > details.card')];
+      visionModel = null; modelPromise = null; scriptLoads.clear(); delete window.tf; delete window.mobilenet;
+      await $('photo').onchange({ target: { files: [new File([await jpeg('#123')], 'a.jpg', { type: 'image/jpeg' })], value: '' } });
+      return { firstHasPhoto: !!cards[0].querySelector('#photo') && !!cards[0].querySelector('label.bigbtn[for=photo]'), second: cards[1].tagName + ':' + cards[1].open, backupSeparate: !!cards[2].querySelector('#backupBox') && !cards[0].querySelector('#backupBox'), diagHidden: document.getElementById('diagnosticBtn').hidden, saveText: document.getElementById('batchBtn').textContent, folded: !document.querySelector('#queue details').open };
+    });
+    assert.deepEqual(r, { firstHasPhoto: true, second: 'DETAILS:false', backupSeparate: true, diagHidden: true, saveText: '모두 저장 (1)', folded: true });
+  });
+
+  await check('Typing in the registration list is not interrupted by re-renders; missing fields are highlighted on save', async page => {
+    const r = await page.evaluate(async () => {
+      visionModel = null; modelPromise = null; scriptLoads.clear(); delete window.tf; delete window.mobilenet;
+      await $('photo').onchange({ target: { files: [new File([await jpeg('#123')], 'a.jpg', { type: 'image/jpeg' })], value: '' } });
+      goto('옷 등록'); const memo = document.querySelector('[aria-label="사진 1 메모"]'); memo.focus(); if (document.activeElement !== memo) throw new Error('memo not focused'); memo.value = '입력 중'; qset(0, 'memo', '입력 중');
+      renderQueue(); const same = document.querySelector('[aria-label="사진 1 메모"]') === memo && memo.isConnected;
+      memo.blur(); await sleep(20); const rerendered = document.querySelector('[aria-label="사진 1 메모"]') !== memo;
+      batch[0].category = ''; batch[0].color = ''; await saveBatch(); const need = !!document.querySelector('#queue .q.need'), msg = alerts.at(-1);
+      qset(0, 'category', '상의'); qset(0, 'color', '회색'); const cleared = !batch[0].need;
+      return { same, rerendered, need, msg, cleared };
+    });
+    assert.equal(r.same, true); assert.equal(r.rerendered, true); assert.equal(r.need, true); assert.match(r.msg, /주황색/); assert.equal(r.cleared, true);
+  });
+
+  await check('Empty closet offers 사진으로 옷 등록 and 백업 파일 가져오기', async page => {
+    const r = await page.evaluate(async () => {
+      const e = document.getElementById('empty'), btns = [...e.querySelectorAll('button')].map(b => b.textContent);
+      e.querySelector('button').click(); return { btns, add: document.getElementById('add').classList.contains('active') };
+    });
+    assert.deepEqual(r, { btns: ['사진으로 옷 등록', '백업 파일 가져오기'], add: true });
+  });
+
+  await check('코디에 담기 after the outfit tab was already drawn shows the new garment (no stale view)', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); goto('코디'); await sleep(20); goto('옷장');
+      openEdit('g1'); OF.addToOutfit(); await sleep(50);
+      return { tab: document.getElementById('outfit').classList.contains('active'), shown: !!document.querySelector('#outfit .card .fl-tile img[alt="포터 토트"]') };
+    });
+    assert.deepEqual(r, { tab: true, shown: true });
+  });
+
+  const MERGE_HELPERS = `
+    window.mkFile = async (clothesRows, outfitsRows, tombstones) => new File([JSON.stringify({ app: 'my-wardrobe', version: '4.5', createdAt: new Date().toISOString(), clothes: await Promise.all(clothesRows.map(async c => ({ type: '', color: '회색', season: '사계절', formality: 2, createdAt: 1, wearCount: 0, lastWorn: null, ...c, image: await b64(c.blob || await jpeg('#777')), blob: undefined }))), outfits: outfitsRows || [], ...(tombstones ? { tombstones } : {}) })], 'backup.json', { type: 'application/json' });
+    window.same = async id => { const c = (await clothesDB()).find(x => x.id === id); return c; };
+  `;
+
+  await check('Merge: wearing on the other device does not undo a content edit made here (wear is merged separately)', async page => {
+    await page.evaluate(MERGE_HELPERS);
+    const r = await page.evaluate(async () => {
+      const img = await jpeg('#345');
+      await seed([{ id: 'x', category: '상의', memo: '원래 이름', image: img, wearCount: 2 }]);
+      openEdit('x'); document.getElementById('editMemo').value = 'PC에서 고친 이름'; await saveEdit();
+      const f = await mkFile([{ id: 'x', category: '상의', memo: '원래 이름', blob: img, wearCount: 3, lastWorn: 9000 }]);
+      await mergeBackup(f); const x = await same('x');
+      return { memo: x.memo, wear: x.wearCount, last: x.lastWorn };
+    });
+    assert.deepEqual(r, { memo: 'PC에서 고친 이름', wear: 3, last: 9000 });
+  });
+
+  await check('Merge: unknown-age content differences are asked about; declining keeps this side and does not claim "same closet"', async page => {
+    await page.evaluate(MERGE_HELPERS);
+    const r = await page.evaluate(async () => {
+      const img = await jpeg('#456'); await seed([{ id: 'x', category: '상의', memo: '여기 이름', image: img }]);
+      const f = () => mkFile([{ id: 'x', category: '상의', memo: '저기 이름', blob: img }]);
+      confirmQueue = [false]; await mergeBackup(await f()); const kept = (await same('x')).memo, t1 = toastText(), asked = confirms.at(-1);
+      confirmQueue = [true, true]; await mergeBackup(await f()); const taken = (await same('x')).memo;
+      return { kept, t1, asked, taken };
+    });
+    assert.equal(r.kept, '여기 이름'); assert.match(r.t1, /그대로 두었습니다/); assert.doesNotMatch(r.t1, /같은 옷장/); assert.match(r.asked, /알 수 없는/); assert.equal(r.taken, '저기 이름');
+  });
+
+  await check('Merge: deletions travel both ways (no revival of deleted outfits/worn dates; other-device deletions apply here) and backups carry the marks', async page => {
+    await page.evaluate(MERGE_HELPERS);
+    const r = await page.evaluate(async () => {
+      await seed([{ id: 'a', category: '상의', memo: 'A' }, { id: 'z', category: '하의', memo: 'Z' }]);
+      await transaction(['outfits'], 'readwrite', tx => { const s = tx.objectStore('outfits'); s.put({ id: 'o1', name: 'O1', slots: { top: 'a', bottom: 'z' }, createdAt: 1, worn: ['2026-09-20'] }); s.put({ id: 'o2', name: 'O2', slots: { top: 'a' }, createdAt: 2, worn: [] }); });
+      await refresh(); goto('코디'); OF.unwear('o1', '2026-09-20'); await sleep(300); OF.del('o2'); await sleep(300);
+      const old = await mkFile([{ id: 'a', category: '상의', memo: 'A' }, { id: 'z', category: '하의', memo: 'Z' }], [{ id: 'o1', name: 'O1', slots: { top: 'a', bottom: 'z' }, createdAt: 1, worn: ['2026-09-20'] }, { id: 'o2', name: 'O2', slots: { top: 'a' }, createdAt: 2, worn: [] }], { c: { z: Date.now() }, o: {}, w: {} });
+      await mergeBackup(old); const os = await outfitsDB(), cs = await clothesDB();
+      let got = null; window.downloadBlob = (b) => { got = b; }; await exportBackup(); const file = JSON.parse(await got.text());
+      return { o2: os.some(o => o.id === 'o2'), o1worn: os.find(o => o.id === 'o1').worn, zGone: !cs.some(c => c.id === 'z'), slot: os.find(o => o.id === 'o1').slots.bottom, marks: Object.keys(file.tombstones.o).includes('o2') && Object.keys(file.tombstones.w).includes('o1|2026-09-20') && Object.keys(file.tombstones.c).includes('z') };
+    });
+    assert.deepEqual(r, { o2: false, o1worn: [], zGone: true, slot: null, marks: true });
+  });
+
+  await check('Merge re-reads inside the write: a change made while the dialog was open is kept; an edited outfit draft follows the merged outfit', async page => {
+    await page.evaluate(MERGE_HELPERS);
+    const r = await page.evaluate(async () => {
+      const img = await jpeg('#567'); await seed([{ id: 'x', category: '상의', memo: 'X', image: img }, { id: 'y', category: '하의', memo: 'Y' }]);
+      goto('코디'); OF.pick('top'); OF.choose('x'); OF.name('내 코디'); OF.save(); await sleep(300); const [o] = await outfitsDB();
+      const f = await mkFile([{ id: 'x', category: '상의', memo: 'X', blob: img, wearCount: 1 }], [{ ...o, name: '폰에서 고친 이름', updatedAt: o.updatedAt + 1000 }]);
+      window.onConfirm = t => { if (t.includes('합칠까요')) transaction(['clothes'], 'readwrite', tx => { const s = tx.objectStore('clothes'), q = s.get('x'); q.onsuccess = () => s.put({ ...q.result, wearCount: 7 }); }); };
+      await mergeBackup(f); window.onConfirm = null;
+      return { wear: (await same('x')).wearCount, name: (await outfitsDB())[0].name, draftName: document.getElementById('outfitName').value };
+    });
+    assert.deepEqual(r, { wear: 7, name: '폰에서 고친 이름', draftName: '폰에서 고친 이름' });
+  });
+
+  await check('Recommend: 다른 추천 shows new tops and bottoms; outer and shoes vary within a page; the reason text matches the result', async page => {
+    const r = await page.evaluate(async () => {
+      const specs = [];
+      for (let i = 0; i < 7; i++) specs.push({ id: 'top' + i, category: '상의', memo: '상의' + i });
+      for (let i = 0; i < 7; i++) specs.push({ id: 'bot' + i, category: '하의', memo: '하의' + i });
+      for (let i = 0; i < 3; i++) specs.push({ id: 'sh' + i, category: '신발', memo: '신발' + i }, { id: 'ou' + i, category: '아우터', memo: '아우터' + i, season: '겨울' });
+      await seed(specs); goto('코디 추천');
+      $('occasion').value = '1'; $('weather').value = 'cold'; recommend(); const p1 = recommendations.map(c => c.slots);
+      recommend(true); const p2 = recommendations.map(c => c.slots);
+      const overlapT = p2.some(s => p1.some(q => q.top === s.top)), overlapB = p2.some(s => p1.some(q => q.bottom === s.bottom));
+      $('occasion').value = '3'; $('weather').value = 'hot'; recommend(); const hotWhy = document.querySelector('#result .reason').textContent;
+      return { overlapT, overlapB, outers: new Set(p1.map(s => s.outer)).size, shoes: new Set(p1.map(s => s.shoes)).size, hotOuter: recommendations.some(c => c.slots.outer), hotWhy };
+    });
+    assert.equal(r.overlapT, false); assert.equal(r.overlapB, false); assert.equal(r.outers, 3); assert.equal(r.shoes, 3); assert.equal(r.hotOuter, false); assert.doesNotMatch(r.hotWhy, /아우터/);
+  });
+
+  await check('추천으로 채우기 repeats without asking, changes both top and bottom, and asks only if the user changed the draft', async page => {
+    const r = await page.evaluate(async () => {
+      const specs = []; for (let i = 0; i < 4; i++) specs.push({ id: 'top' + i, category: '상의', memo: '상의' + i }, { id: 'bot' + i, category: '하의', memo: '하의' + i });
+      await seed(specs); goto('코디'); await sleep(20);
+      OF.fillRec(); const a = JSON.parse(localStorage.getItem('wardrobe.outfitDraft')).draft; OF.fillRec(); const b = JSON.parse(localStorage.getItem('wardrobe.outfitDraft')).draft;
+      const asked = confirms.length; OF.pick('top'); OF.choose('top3'); confirmAnswer = false; OF.fillRec(); const askedAfterManual = confirms.length;
+      return { asked, bothChanged: a.top !== b.top && a.bottom !== b.bottom, askedAfterManual };
+    });
+    assert.deepEqual(r, { asked: 0, bothChanged: true, askedAfterManual: 1 });
+  });
+
+  await check('PC click on a list button right after typing is not swallowed by the deferred redraw', async page => {
+    await page.evaluate(async () => {
+      visionModel = null; modelPromise = null; scriptLoads.clear(); delete window.tf; delete window.mobilenet;
+      await $('photo').onchange({ target: { files: [new File([await jpeg('#123')], 'a.jpg', { type: 'image/jpeg' })], value: '' } }); goto('옷 등록');
+    });
+    await page.click('[aria-label="사진 1 메모"]'); await page.keyboard.type('셔츠');
+    await page.evaluate(() => renderQueue());
+    await page.click('#queue .q .quick button:first-child');
+    await page.waitForTimeout(50);
+    const r = await page.evaluate(() => ({ cat: batch[0].category, memo: batch[0].memo }));
+    assert.deepEqual(r, { cat: '상의', memo: '셔츠' });
+  });
+
+  await check('Busy photo button looks disabled; plain toasts let taps through; stale orange outline is not drawn; ?debug=1 survives a reload', async page => {
+    const r = await page.evaluate(async () => {
+      processing = true; updateBatchButtons(); const off = document.getElementById('photoLabel').classList.contains('off'), offText = document.getElementById('photoLabel').textContent; processing = false; updateBatchButtons();
+      toast('안내'); const pe = document.getElementById('appToast').style.pointerEvents;
+      visionModel = null; modelPromise = null; scriptLoads.clear(); delete window.tf; delete window.mobilenet;
+      await $('photo').onchange({ target: { files: [new File([await jpeg('#321')], 'a.jpg', { type: 'image/jpeg' })], value: '' } });
+      batch[0].need = true; batch[0].category = '상의'; batch[0].color = '회색'; renderQueue(); const stale = !!document.querySelector('#queue .q.need');
+      return { off, offText, pe, stale };
+    });
+    assert.equal(r.off, true); assert.match(r.offText, /끝나면/); assert.equal(r.pe, 'none'); assert.equal(r.stale, false);
+    await page.goto(page.url().replace(/\/?(\?.*)?$/, '/?debug=1')); await page.waitForFunction(() => window.OF);
+    await page.goto(page.url().replace(/\?.*$/, '')); await page.waitForFunction(() => window.OF);
+    assert.equal(await page.evaluate(() => DEBUG), true);
   });
 
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {

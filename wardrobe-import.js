@@ -89,7 +89,8 @@ async function queueProduct(){
     const image=productDraft.image,col=await estimateColor(image),suggestion=productTitleSuggestion(p.name);
     const x={image,...suggestion,color:'',manual:{},requestId:0,aiStatus:suggestion.category?'상품명 참고 · 속성을 확인해주세요.':'상품 가져옴 · 분류 확인 필요',season:'사계절',formality:2,memo:p.name,wardrobeDetails:{product:p}};
     applyColorResult(x,col);batch.push(x);productDraft=null;$('productReview').hidden=true;$('productPayload').value='';
-    $('productStatus').textContent='등록 목록에 추가했습니다. 아래 속성을 확인한 뒤 모두 저장을 눌러주세요.';renderQueue();
+    $('productStatus').textContent='위 등록 목록에 추가했습니다. 분류·색을 확인한 뒤 모두 저장을 눌러주세요.';renderQueue();
+    {const last=$('queue').lastElementChild;if(last)last.scrollIntoView({block:'center'});const pc=$('productCard');if(pc)pc.open=false}
   }catch(e){reportError(e,'상품을 추가하지 못했습니다.')}finally{productBusy=false;processing=false;updateBatchButtons();$('productQueueBtn').disabled=false}
 }
 async function validateWardrobeDetails(details){
