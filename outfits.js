@@ -266,7 +266,7 @@
   // ---------- 옷 수정 창: 코디에 담기 ----------
   function editFormDirty(c){
     const v=id=>{const el=$(id);return el?el.value:''};
-    return v('editCategory')!==(c.category||'')||v('editType')!==(c.type||'')||v('editColor')!==(c.color||'기타')||v('editSeason')!==(c.season||'사계절')||String(v('editFormality'))!==String(c.formality||2)||v('editMemo').trim()!==(c.memo||'');
+    return v('editCategory')!==(c.category||'')||v('editType')!==(c.type||'')||v('editColor')!==(c.color||'기타')||v('editSeason')!==(c.season||'사계절')||String(v('editFormality'))!==String(typeof formalityLevel==='function'?formalityLevel(c.formality):((+c.formality||1)>=3?3:1))||v('editMemo').trim()!==(c.memo||'');
   }
   function addToOutfit(){
     const id=typeof editingId!=='undefined'?editingId:null,c=byId(id);if(!c)return;

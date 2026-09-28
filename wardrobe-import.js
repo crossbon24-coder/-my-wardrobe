@@ -99,7 +99,7 @@ async function queueProduct(){
   try{
     const p=productMetadata({...productDraft.product,name:$('productName').value,brand:$('productBrand').value,url:$('productURL').value,material:$('productMaterial').value,color:$('productColor').value,size:$('productSize').value});
     const image=productDraft.image,col=await estimateColor(image),suggestion=productTitleSuggestion(p.name);
-    const x={image,...suggestion,color:'',manual:{},requestId:0,aiStatus:suggestion.category?'상품명 참고 · 속성을 확인해주세요.':'상품 가져옴 · 분류 확인 필요',season:'사계절',formality:2,memo:p.name,wardrobeDetails:{product:p}};
+    const x={image,...suggestion,color:'',manual:{},requestId:0,aiStatus:suggestion.category?'상품명 참고 · 속성을 확인해주세요.':'상품 가져옴 · 분류 확인 필요',season:'사계절',formality:1,memo:p.name,wardrobeDetails:{product:p}};
     applyColorResult(x,col);batch.push(x);productDraft=null;$('productReview').hidden=true;$('productPayload').value='';
     $('productStatus').textContent='위 등록 목록에 추가했습니다. 분류·색을 확인한 뒤 모두 저장을 눌러주세요.';renderQueue();
     {const last=$('queue').lastElementChild;if(last)last.scrollIntoView({block:'center'});const pc=$('productCard');if(pc)pc.open=false}
@@ -133,7 +133,7 @@ async function chooseCarePhoto(file){
   if(!file||detailsBusy||mutationBusy||editingId===null)return;
   const session=detailsSession;detailsBusy=true;$('editSaveBtn').disabled=true;$('careStatus').textContent='라벨 사진을 준비하고 있습니다…';
   try{
-    const data=await b64(await f2b(file));if(session!==detailsSession||editingId===null)return;
+    const data=await b64(await f2b(file,{trim:false}));if(session!==detailsSession||editingId===null)return; // 세탁 라벨은 자르지 않는다
     editDetails.care={...editDetails.care,labelImage:data};renderCarePhoto();
     $('careStatus').textContent='사진이 첨부되었습니다. 내용을 확인하고 저장해주세요.';
   }catch(e){if(session===detailsSession)$('careStatus').textContent=e.message}
