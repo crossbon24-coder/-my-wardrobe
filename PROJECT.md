@@ -3,7 +3,51 @@
 이 문서는 이 저장소를 이어서 개발하는 작업자의 기준 문서다. 매 작업을 시작할 때 최신 `PROJECT.md`, 실제 코드, `version.json` 및 저장소 지침을 먼저 읽는다. 현재 사용자의 명시적인 지시가 우선하며, 이 문서를 근거로 요청 범위 밖의 구현을 시작하지 않는다.
 
 
-## 현재 기준 — v4.7 (사용자 피드백: 격식 두 단계, 색 이름, 사진 여백 자동 자르기) — Claude Code, 2026-09-28
+## 현재 기준 — v4.8 (쇼핑몰 상품 가져오기 개선) — Claude Code, 2026-09-29
+
+사용자 불편(단축어가 느림, 붙여넣기가 번거로움, 무신사·29CM 앱 공유가 안 됨)을 풀었다. 사용자가 쓰는 쇼핑몰은 무신사·29CM(주로 앱)과 스테디에브리웨어·포터리·로커드(웹, 모두 Cafe24)다. 조사: 쇼핑몰 12곳 원문 실측, 사용자 쇼핑몰 5곳 재실측(원문·렌더·사진 CORS·앱 공유 링크), iOS 단축어·웹앱 제약. 변경 뒤 3관점 반박 검토 확인 20건 반영.
+
+### 실측 요약(2026-09-28, PC curl·Playwright WebKit, iPhone 실기기 아님)
+
+- 사진 CORS 허용(앱이 직접 받음): 무신사 image.msscdn.net(`/images/goods_img/…_big.jpg`는 1500px, `/thumbnails/`는 CORS 없음), 29CM img.29cm.co.kr, Cafe24 사진 서버 cafe24img.poxo.com(스테디에브리웨어·포터리). 로커드 자체 도메인 사진(m.lokward.com)은 CORS가 없지만 `https://cafe24img.poxo.com/{몰ID}/web/product/…`로 같은 파일을 받는다(몰ID는 JSON-LD productGroupID). W컨셉·SSF·지그재그·코오롱도 허용, 유니클로·스파오·에이블리는 막힘.
+- 상품 HTML은 무신사·29CM·Cafe24 모두 CORS가 없어 앱이 주소만으로 페이지를 받을 수는 없다.
+- Cafe24 JSON-LD는 ProductGroup + 사이즈별 hasVariant 구조. 할인가는 product:sale_price:amount에만 있다. 포터리는 canonical·og:url이 없고 JSON-LD @id만 있다.
+- 무신사 원문에는 JSON-LD가 없고(렌더 후 페이지 JS가 넣음) og:title 꼬리표 ' - 사이즈 & 후기 | 무신사', product:brand·product:price:amount가 있다. 29CM 원문에는 JSON-LD Product가 있고 꼬리표는 ' - 감도 깊은 취향 셀렉트샵 29CM'.
+- 앱 공유 링크는 AppsFlyer 짧은 주소(musinsa.onelink.me, 29cm.onelink.me)다. 단축어 UA로 받으면 HTTP 리다이렉트 없이 안내 페이지가 오고, 그 안에 상품 주소(`https://www.musinsa.com/products/숫자`, `https://www.29cm.co.kr/products/숫자`)가 한 번 들어 있다. 29CM 링크 일부는 상품 주소 없이 App Store로만 간다. 공유 주소에는 공유한 사람 식별값(reward_key, af_referrer_*)이 붙는다.
+
+### 앱(wardrobe-import.js, index.html)
+
+- 붙여넣기: 상품 칸 맨 위 '붙여넣기'와 옷장 첫 화면 '쇼핑몰 상품 붙여넣기'(goAdd로 등록 화면 이동). navigator.clipboard.readText()를 누른 직후 먼저 부르고, 입력칸을 거치지 않고 미리보기. 입력칸에 길게 눌러 붙여 넣어도 JSON·HTML·Base64면 바로 미리보기(주소 같은 짧은 글은 칸에 둠). 준비 중이면 안내만.
+- productFromText: JSON(단축어) / HTML 원문 / Base64로 넘긴 HTML(앱용 단축어) / 주소·공유 문구를 받는다. HTML은 product-shortcut.js를 DOMParser 문서에 new Function으로 실행해 같은 규칙으로 읽는다(페이지 주소: canonical → og:url → JSON-LD @id·url → 붙여 넣은 주소, `<base>`를 넣어 상대 주소 해석). 글자 인코딩은 charset 헤더 → meta charset → UTF-8(EUC-KR 가능). 페이지 원문 한도 4MB, 응답은 조금씩 읽다 한도에서 끊는다.
+- 실수 복구·안내: Base64 줄바꿈(JSON 안 줄바꿈) 복구, 사진 글자가 깨지면 사진 주소로 다시 받기, metadata 따옴표 실수·주소만·Base64가 HTML이 아님·공유 안내 페이지(Launching App, 대표 제목, onelink 주소)를 경우별 한국어로 안내.
+- 사진: 서버가 알린 형식 대신 파일 앞부분으로 JPEG·PNG·WebP 판별, https 앱에서 http 사진은 https로 먼저, 후보 순서는 무신사 큰 사진(`/thumbnails` 제거, `_500`→`_big`) → Cafe24 사진 서버 → 원래 주소. 실패 이유(막힘·늦음·거절·형식·크기)를 보여 준다.
+- 다듬기(refineProduct): 쇼핑몰 꼬리표 제거, 이름 앞 브랜드는 뒤에 영문 표기 괄호가 있거나 남는 이름에 옷 이름이 있을 때만 제거, 가격은 천 단위 쉼표·'원'만 정리, Cafe24 코드 cafe24_몰ID_1_상품번호 → 코드는 상품번호, 몰ID는 사진 후보에만.
+- 추적값 제거(cleanProductURL, 추출기 url도 같음): utm_*·fbclid·gclid·gbraid·wbraid·gad_source·dclid·msclkid·ttclid·twclid·yclid·igshid·igsh·mc_*·_hs*·_ga·_gl·ref_src·srsltid·af_*·reward_key·shortlink·deep_link_*·is_retargeting·onelink_*·source_caller·NaPm·n_*. pid는 af_*와 함께 있을 때만 뺀다. 주소만 붙여 넣을 때도 지운 주소로 요청한다. 요청은 credentials omit, no-referrer(CORS라 앱 출처는 전달됨 — 안내에 적음).
+- 상품명 색 참고(nameColor): 구매 색상 칸 → 이름 끝의 [색]·(색)·_색·- 색 → 이름 전체 순. 낱말 단위로만 맞추고 라이트·다크·삭스 같은 꾸밈말을 떼고 본다(블루종·삭스·블랙워치·샌드워시·모카신·크림슨은 색 아님). 이름 전체 단계에서는 뜻이 여럿인 낱말(내추럴·크림·샌드·실버·커피 등)을 쓰지 않는다. 두 색으로 읽히거나 구매 색상 칸이 12색 밖이면 비운다. 브랜드 글자는 빼고 본다. 목록에 넣을 때 x.colorSource='name'(사용자 확정 manual과 구분, 진단에 섞이지 않음). 사진 판정·다시 분석은 이 색을 덮지 않고, 사용자가 색을 바꾸면 해제.
+
+### 추출기(product-shortcut.js)
+
+- ProductGroup 인정: 묶음 값(name·brand·image·description·offers)을 쓰고, 비었을 때만 첫 변형에서 name·brand·offers를 빌린다. 사이즈·색·설명·사진은 변형에서 빌리지 않는다(첫 사이즈가 '구매 사이즈'로 채워지던 회귀 방지). 코드는 productGroupID(없으면 변형 코드의 앞 네 토막).
+- 같은 Product가 두 번 있으면 하나로(서로 다른 상품 여럿이면 기존처럼 og 값). brand 배열은 첫 항목, 없으면 product:brand 메타. 가격은 product:sale_price:amount → offers.price → product:price:amount.
+- 사용자가 단축어 JavaScript 코드를 바꿔 넣어야 Safari 경로에 반영된다. 붙여넣기 HTML 경로는 앱이 늘 최신 코드를 쓴다.
+
+### 단축어 안내(shortcut-help.html)
+
+- 1번 Safari용 짧은 버전(권장): JavaScript 실행 → 사전 값(metadata) → 클립보드에 복사. 긴 버전 사용자는 사진 단계를 지우고 클립보드 입력을 사전 값으로 다시 지정. 사진이 막힌 쇼핑몰용 긴 버전은 접어 둠.
+- 2번 쇼핑몰 앱용(무신사·29CM): 입력에서 URL 가져오기 → URL의 콘텐츠 가져오기 → 이름 설정(page.txt) → 텍스트 일치(정규식) → 조건문 안에 첫 번째 항목 → URL의 콘텐츠 가져오기 → 이름 설정(page.txt) → Base64 인코딩(줄바꿈 없음) → 클립보드에 복사 → 알림. iPhone에서 끝까지 확인하지 않았다(이름 설정으로 원문 그대로 다루는지, Base64가 원문 바이트인지가 핵심 전제).
+
+### 검사
+
+- tests/features.cjs 77개(v4.8에서 8개 추가: 붙여넣기 버튼(검사용 goto 없이), 실수 복구·형식 판별, HTML·주소 붙여넣기, Cafe24 ProductGroup·할인가·사진 후보, 상품명 색·colorSource·Base64 HTML, 포터리 @id·공유 안내 페이지, 추적값·EUC-KR·대표 제목·짧은 JSON 붙여넣기). outfits 20, regression 37 통과.
+- 실제 쇼핑몰 원문 8개(무신사 2, 29CM 2, 스테디에브리웨어·포터리·로커드, 무신사 공유 안내 페이지)를 붙여넣기 경로로 돌려 이름·브랜드·가격·주소·색·분류·사진 후보가 맞는 것을 확인했다(원문은 저장소 밖 작업 폴더에만).
+
+### 남은 것
+
+- iPhone 실기기 확인: 붙여넣기 말풍선, 짧은 버전 결과, 앱용 단축어 전 과정(특히 29CM 링크), 무신사 _big 사진.
+- 무늬 칸: 사용자가 보류.
+- 브랜드를 다른 문자로 적은 경우(OFF-WHITE ↔ 오프화이트)의 이름 색 오탐, 하위 브랜드 이름 떼기('무신사 스탠다드 우먼'), 몰ID에 밑줄이 있는 Cafe24 코드는 처리하지 않는다.
+
+## 이전 기준 — v4.7 (사용자 피드백: 격식 두 단계, 색 이름, 사진 여백 자동 자르기) — Claude Code, 2026-09-28
 
 사용자가 실제로 쓰면서 말한 불편(스마트캐주얼·비즈니스는 필요 없음, 삭스블루를 어느 색으로 할지 애매함, 사진첩 사진에 자르기가 없음)을 반영했다. 변경마다 반박 검토를 한 번씩 돌렸고, 확인된 것을 고쳤다(격식: 확인 5건·불확실 1건, 자르기·추천: 확인 8건).
 
