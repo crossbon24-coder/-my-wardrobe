@@ -1183,7 +1183,7 @@ async function check(name, fn, opts) {
       const base = { name: 'a', slots: { top: 't1' } };
       return { shown, none, went, fav: sameOutfit(base, { ...base, fav: true }), tags: sameOutfit({ ...base, tags: ['출근'] }, { ...base, tags: [] }), plain: sameOutfit(base, { ...base }) };
     });
-    assert.deepEqual(r.shown, { hidden: false, open: false, text: '이 옷이 든 코디 2개', cards: 2 });
+    assert.deepEqual(r.shown, { hidden: false, open: false, text: '이 옷이 든 코디 2개 · 입은 날 1일', cards: 2 }); // v4.10: 입은 날 수가 붙는다
     assert.equal(r.none, true);
     assert.deepEqual(r.went, { page: 'outfit', edit: false, found: true, flash: true });
     assert.deepEqual([r.fav, r.tags, r.plain], [false, false, true]);
@@ -1318,6 +1318,93 @@ async function check(name, fn, opts) {
       return { ok, noFuture: !days.includes('2099-01-01'), today: days.includes(recDay()), restored, errors: window.alerts.length };
     });
     assert.deepEqual(r, { ok: true, noFuture: true, today: true, restored: false, errors: 0 });
+  });
+
+  await check('Closet cards and the pick sheet show how many saved outfits use each item; the garment panel adds worn days and items often worn together, and remembers being opened', async page => {
+    const r = await page.evaluate(async () => {
+      await basic();
+      await transaction(['outfits'], 'readwrite', tx => { const st = tx.objectStore('outfits');
+        st.put({ id: 'o1', name: '출근', slots: { top: 't1', bottom: 'b1', shoes: 's1' }, createdAt: 1, worn: ['2026-10-01', '2026-10-08'] });
+        st.put({ id: 'o2', name: '주말', slots: { top: 't1', bottom: 'b1' }, createdAt: 2, worn: ['2026-10-05'] });
+        st.put({ id: 'o3', name: '셔츠', slots: { top: 't2', bottom: 'b1' }, createdAt: 3, worn: [] }); });
+      await refresh(); goto('옷장');
+      const card = id => [...document.querySelectorAll('#items .item')].find(e => e.querySelector('img').getAttribute('onclick').includes(`'${id}'`) || e.querySelector('img').getAttribute('onclick').includes(`"${id}"`));
+      const cardText = { t1: card('t1').innerText, b1: card('b1').innerText, t3: card('t3').innerText };
+      goto('코디'); OF.pick('top'); await sleep(30); const pick = [...document.querySelectorAll('#pickGrid .pitem')].map(e => e.textContent).join('|'), badge = !!document.querySelector('#pickGrid .pitem > .pcount'); OF.closePick();
+      openEdit('t1'); const d = document.getElementById('ofRelated');
+      const summary = d.querySelector('summary').textContent, more = d.querySelector('.of-rel-more').textContent, co = [...d.querySelectorAll('.of-co-item span')].map(e => e.textContent);
+      d.querySelector('summary').click(); await sleep(20); closeEdit(); openEdit('t2'); const reopened = document.getElementById('ofRelated').open; closeEdit();
+      return { cardText, pick, badge, summary, more, co, reopened };
+    });
+    assert.match(r.cardText.t1, /코디 2/); assert.match(r.cardText.b1, /코디 3/); assert.doesNotMatch(r.cardText.t3, /코디/);
+    assert.match(r.pick, /코디 2/); assert.equal(r.badge, true, 'count is a photo badge, not cut off by long names');
+    assert.equal(r.summary, '이 옷이 든 코디 2개 · 입은 날 3일');
+    assert.match(r.more, /입은 날 10\/8, 10\/5, 10\/1/); assert.deepEqual(r.co.slice(0, 2), ['인디고 데님', '뉴발란스']);
+    assert.equal(r.reopened, true);
+  });
+
+  await check('"Recommend with this item": every combo keeps the pinned top (or shoes/outer), other slots rotate, the banner can release it, pinned screens are not remembered, and accessories have no button', async page => {
+    const r = await page.evaluate(async () => {
+      const specs = []; for (let i = 0; i < 5; i++) specs.push({ id: 't' + i, category: '상의', memo: '상의' + i }, { id: 'b' + i, category: '하의', memo: '하의' + i });
+      specs.push({ id: 's0', category: '신발', memo: '신발0' }, { id: 's1', category: '신발', memo: '신발1' }, { id: 'o0', category: '아우터', memo: '아우터0', season: '겨울' }, { id: 'a0', category: '액세서리', memo: '벨트' });
+      await seed(specs);
+      openEdit('t3'); const btnShown = !document.getElementById('ofRecBtn').hidden; OF.recWith(); await sleep(30);
+      const page1 = document.querySelector('.page.active').id, banner = document.querySelector('#result .recpin')?.innerText || '';
+      const s1 = recommendations.map(c => c.slots); recommend(true); const s2 = recommendations.map(c => c.slots);
+      const allTop = [...s1, ...s2].every(s => s.top === 't3'), bottoms = new Set([...s1, ...s2].map(s => s.bottom)).size;
+      const mem = localStorage.getItem('wardrobe.recMemory');
+      document.querySelector('#result .recpin button').click(); await sleep(20); const released = !document.querySelector('#result .recpin') && recommendations.some(c => c.slots.top !== 't3');
+      setRecPin('shoes', 's1'); $('weather').value = 'hot'; recommend(); const shoes = recommendations.every(c => c.slots.shoes === 's1');
+      setRecPin('outer', 'o0'); recommend(); const outerHot = recommendations.every(c => c.slots.outer === 'o0'); clearRecPin();
+      openEdit('a0'); const accHidden = document.getElementById('ofRecBtn').hidden; closeEdit();
+      return { btnShown, page1, banner, allTop, bottoms, mem, released, shoes, outerHot, accHidden };
+    });
+    assert.equal(r.btnShown, true); assert.equal(r.page1, 'recommend'); assert.match(r.banner, /고정한 옷: 상의3/);
+    assert.equal(r.allTop, true); assert.ok(r.bottoms >= 4, `bottoms ${r.bottoms}`); assert.equal(r.mem, null, 'pinned screens are not stored');
+    assert.equal(r.released, true); assert.equal(r.shoes, true); assert.equal(r.outerHot, true); assert.equal(r.accHidden, true);
+  });
+
+  await check('Pinned recommendations follow the pinned item: a formal shirt on a hot weekend gets slacks and dress shoes, pinned dress shoes lead with formal clothes, a winter coat on a hot day switches to its season with a note, opposite-season clothes do not fill out a short screen; pins survive a data refresh, follow category changes, and releasing returns to today\'s last screen', async page => {
+    const r = await page.evaluate(async () => {
+      const put = async spec => { await seed(spec.map(([id, category, type, season]) => ({ id, category, type, memo: type + id, season }))); await transaction(['clothes'], 'readwrite', tx => { const st = tx.objectStore('clothes'); for (const [id, , , , f] of spec) { const q = st.get(id); q.onsuccess = () => st.put({ ...q.result, formality: f, color: '회색' }); } }); await refresh(); };
+      await put([['tf', '상의', '셔츠', '사계절', 3], ['tc', '상의', '티셔츠', '여름', 1], ['tc2', '상의', '티셔츠', '여름', 1], ['bf', '하의', '슬랙스', '사계절', 3], ['bc', '하의', '쇼츠', '여름', 1], ['bc2', '하의', '데님', '사계절', 1],
+        ['sf', '신발', '구두', '사계절', 3], ['sc', '신발', '샌들', '여름', 1], ['ow', '아우터', '코트', '겨울', 3]]);
+      goto('코디 추천'); $('occasion').value = '1'; $('weather').value = 'hot';
+      recommend(); recommend(true); const last = recommendations.map(c => c.key); // 오늘 마지막 화면(고정 없음)
+      setRecPin('top', 'tf'); recommend(); const shirt = recommendations[0].slots;
+      setRecPin('shoes', 'sf'); recommend(); const shoes = recommendations[0].slots;
+      setRecPin('outer', 'ow'); recommend(); const coat = { note: document.querySelector('#result .warn')?.textContent || '', bottoms: recommendations.map(c => c.slots.bottom), why: document.querySelector('#result .reason').textContent };
+      await refresh(); goto('옷장'); goto('코디 추천'); const afterRefresh = { banner: !!document.querySelector('#result .recpin'), allCoat: recommendations.every(c => c.slots.outer === 'ow') };
+      await transaction(['clothes'], 'readwrite', tx => { const st = tx.objectStore('clothes'), q = st.get('ow'); q.onsuccess = () => st.put({ ...q.result, category: '액세서리', updatedAt: Date.now() }); }); await refresh();
+      goto('옷장'); goto('코디 추천'); const afterCat = { banner: !!document.querySelector('#result .recpin'), pin: recPin };
+      setRecPin('top', 'tf'); recommend(); clearRecPin(); const released = { banner: !!document.querySelector('#result .recpin'), sameAsLast: JSON.stringify(recommendations.map(c => c.key)) === JSON.stringify(last) };
+      $('weather').value = 'cold'; recommend(); const coldBottoms = recommendations.map(c => c.slots.bottom);
+      return { shirt, shoes, coat, afterRefresh, afterCat, released, coldBottoms };
+    });
+    assert.deepEqual([r.shirt.bottom, r.shirt.shoes], ['bf', 'sf']); assert.deepEqual([r.shoes.top, r.shoes.bottom], ['tf', 'bf'], 'pinned dress shoes on a hot weekend still lead with the formal shirt and slacks');
+    assert.match(r.coat.note, /고정한 옷\(겨울\)에 맞춰 날씨를 '추운 날'/); assert.ok(!r.coat.bottoms.includes('bc'), JSON.stringify(r.coat.bottoms)); assert.match(r.coat.why, /고정한 아우터/);
+    assert.deepEqual(r.afterRefresh, { banner: true, allCoat: true });
+    assert.deepEqual(r.afterCat, { banner: false, pin: null });
+    assert.deepEqual(r.released, { banner: false, sameAsLast: true });
+    assert.ok(r.coldBottoms.length && !r.coldBottoms.includes('bc'), 'summer shorts are not used to fill a cold-day screen: ' + JSON.stringify(r.coldBottoms));
+  });
+
+  await check('Outfit changes update closet "outfit n" at once; deleting a calendar record removes that worn day; overwriting a worn outfit with other items asks first; the pin button follows the category being edited', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); goto('코디'); OF.pick('top'); OF.choose('t1'); OF.pick('bottom'); OF.choose('b1'); OF.save(); await sleep(300);
+      goto('옷장'); const cardOf = id => [...document.querySelectorAll('#items .item')].find(e => (e.querySelector('img').getAttribute('onclick') || '').includes(id)).innerText;
+      const afterSave = cardOf('t1');
+      const o = outfits[0]; await OF.wear(o.id); await sleep(200); const d = localDateStr();
+      openEdit('t1'); const before = document.getElementById('ofRelated').querySelector('summary').textContent; closeEdit();
+      OF.unwear(o.id, d); await sleep(200); openEdit('t1'); const after = document.getElementById('ofRelated').querySelector('summary').textContent;
+      document.getElementById('editCategory').value = '액세서리'; document.getElementById('editCategory').dispatchEvent(new Event('change')); const btnHidden = document.getElementById('ofRecBtn').hidden; closeEdit();
+      await OF.wear(o.id); await sleep(200); goto('코디'); OF.load(o.id); OF.pick('top'); OF.choose('t2');
+      window.confirmAnswer = false; const n0 = confirms.length; OF.save(); await sleep(300); const asked = confirms.length > n0, top = (await outfitsDB())[0].slots.top;
+      window.confirmAnswer = true; OF.del(o.id); await sleep(300); goto('옷장'); const afterDel = cardOf('t1');
+      return { afterSave, before, after, btnHidden, asked, top, afterDel };
+    });
+    assert.match(r.afterSave, /코디 1/); assert.match(r.before, /입은 날 1일/); assert.doesNotMatch(r.after, /입은 날/);
+    assert.equal(r.btnHidden, true); assert.equal(r.asked, true); assert.equal(r.top, 't1', 'cancel keeps the worn outfit as it was'); assert.doesNotMatch(r.afterDel, /코디/);
   });
 
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {
