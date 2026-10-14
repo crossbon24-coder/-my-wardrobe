@@ -1,4 +1,5 @@
-/* outfits.js — 코디 만들기·저장 코디·착용 캘린더·옷장 검색/4열 (Claude Code, v4.0~)
+/* outfits.js — 코디 만들기·착용 캘린더·옷장 검색/4열·옷 창 패널 (Claude Code, v4.0~)
+   v4.11: 코디 탭은 세 화면이다. 목록(view 'list', 모아보기는 outfit-list.js가 그림)·캘린더('cal')·만들기('builder', '+ 새 코디'·고치기·코디에 담기·추천 담기로 연다).
    index.html의 전역(clothes, outfits, db, filter, editingId, $, esc, arg, url, transaction, refresh, render, showPage, closeEdit, reportError)을
    호출만 하고 고치지 않는다. render·showPage는 감싸서 뒤에 코디 화면을 이어 그린다.
    데이터 계약은 COLLAB.md 3절: outfits {id, name, slots:{outer,top,bottom,shoes,bag,acc}, createdAt(ms), worn:['YYYY-MM-DD']}.
@@ -18,15 +19,15 @@
   const ROWS=[['outer','top'],['bottom'],['shoes','bag','acc']];
   const EMPTY={outer:null,top:null,bottom:null,shoes:null,bag:null,acc:null};
   const WEEK=['일','월','화','수','목','금','토'];
-  const DRAFT_KEY='wardrobe.outfitDraft',LIST_STEP=30;
+  const DRAFT_KEY='wardrobe.outfitDraft';
   let draft={...EMPTY},draftName='',editId=null,saving=false;
+  // editBase: 고치는 코디를 불러오거나 저장한 때의 칸·이름. 그 코디가 지워지거나 다른 곳(합치기·복원)에서 바뀌었을 때
+  // 초안이 그대로였는지(깨끗한지) 가르는 기준. 깨끗하면 초안을 비우거나 새 내용으로 맞추고, 고치던 중이면 새 코디로 남긴다
+  let editBase=null;
   let pickSlot=null,pickAll=false,pickQuery='',pickType='',pickSort='recent';
-  let view='list',sortKey='recent',listLimit=LIST_STEP,calMonth=null,calAutoMonth=null,calDay=null,addWornFor=null;
+  // view: 'list'(모아보기)·'cal'(캘린더)·'builder'(만들기 화면). 앱을 새로 열면 목록에서 시작하고, 저장 안 한 초안이 있으면 목록 위에 '이어서 만들기'를 띄운다
+  let view='list',calMonth=null,calAutoMonth=null,calDay=null,addWornFor=null,wornQuery='';
   let closetQuery='',closetSort='recent',dense=false,toastTimer=null,outfitDirty=true;
-  // 코디 만들기 칸: 사용자가 요약 줄을 눌러 정한 상태(builderPref, 기기에 저장) → 이번 실행에서 불러오기·담기·고르기로 연 상태(builderAct)
-  // → 둘 다 없으면 저장 안 한 초안이 있을 때만 펼친다(저장한 코디를 고치던 상태로 앱을 다시 열어도 접혀 있게)
-  let builderPref=null,builderAct=false;
-  const BUILDER_KEY='wardrobe.builderOpen';
 
   const pad=n=>String(n).padStart(2,'0');
   const fmtDate=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; // 현지 날짜. toISOString은 UTC라 쓰지 않는다
@@ -59,15 +60,25 @@
   function safe(fn,label){try{fn()}catch(e){renderErrors++;console.error('outfits.js '+label,e);say(`${label} 오류: ${e&&e.message||e}`)}}
 
   // ---------- 초안 보존(옷 id·이름만 localStorage에) ----------
-  function persistDraft(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify({draft,name:draftName,editId}))}catch{}}
-  function restoreDraft(){try{const s=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(s&&s.draft&&typeof s.draft==='object'){for(const k in EMPTY){const v=s.draft[k];draft[k]=typeof v==='string'||typeof v==='number'?v:null}draftName=typeof s.name==='string'?s.name:'';editId=s.editId||null}}catch{}}
-  function sanitizeDraft(){ // 데이터가 올라온 뒤에만(옷이 1벌 이상 읽힌 뒤): 사라진 옷·지워진 코디 참조를 비운다
-    if(!clothes.length)return;let changed=false;
+  const slotVal=v=>typeof v==='string'||typeof v==='number'?v:null;
+  function persistDraft(){try{localStorage.setItem(DRAFT_KEY,JSON.stringify({draft,name:draftName,editId,base:editBase}))}catch{}}
+  function restoreDraft(){try{const s=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(s&&s.draft&&typeof s.draft==='object'){for(const k in EMPTY)draft[k]=slotVal(s.draft[k]);draftName=typeof s.name==='string'?s.name:'';editId=s.editId||null;
+    const b=s.base&&typeof s.base==='object'&&s.base.slots&&typeof s.base.slots==='object'?s.base:null;editBase=editId&&b?{slots:Object.fromEntries(Object.keys(EMPTY).map(k=>[k,slotVal(b.slots[k])])),name:typeof b.name==='string'?b.name:''}:null}}catch{}}
+  // 있는 옷만 남긴 칸(지운 옷이 든 코디를 불러와도 '고친 것'으로 보이지 않게)
+  const liveOf=sl=>{const r={...EMPTY};for(const k in EMPTY){const v=sl&&sl[k];r[k]=v!==null&&v!==undefined&&byId(v)?v:null}return r};
+  const draftClean=()=>!!editBase&&Object.keys(EMPTY).every(k=>(liveOf(draft)[k]||null)===(liveOf(editBase.slots)[k]||null))&&(!draftName.trim()||draftName.trim()===(editBase.name||'').trim()); // 빈 이름은 저장된 이름 그대로(hasDraft와 같은 규칙)
+  function sanitizeDraft(){ // 데이터가 올라온 뒤에만(옷이 1벌 이상 읽힌 뒤): 사라진 옷·지워진 코디 참조를 정리한다
+    if(!clothes.length)return;let changed=false;const clean=draftClean();
     for(const k in EMPTY)if(draft[k]&&!byId(draft[k])){draft[k]=null;changed=true}
-    if(editId&&!outfits.some(o=>o.id===editId)){editId=null;changed=true}
-    if(changed)persistDraft();
+    if(editId){const o=outfits.find(x=>x.id===editId);
+      if(!o){if(clean){draft={...EMPTY};draftName=''}editId=null;editBase=null;changed=true} // 지운 코디: 그대로였으면 비우고, 고치던 중이면 새 코디로 남긴다
+      else if(!editBase){const n=norm(o),sl=liveOf(n.slots);if(Object.keys(EMPTY).every(k=>sl[k]===(liveOf(draft)[k]||null))&&draftName.trim()===n.name.trim()){editBase={slots:{...sl},name:n.name};changed=true}} // v4.10에서 넘어온 초안: 저장본과 같으면 기준으로
+      else if(clean){const n=norm(o),sl=liveOf(n.slots);if(!Object.keys(EMPTY).every(k=>sl[k]===(liveOf(editBase.slots)[k]||null))||n.name!==editBase.name){draft={...sl};draftName=n.name;editBase={slots:{...sl},name:n.name};changed=true}} // 다른 곳에서 바뀐 코디: 새 내용으로
+    }
+    if(changed){persistDraft();outfitDirty=true}
   }
-  function setDraft(next,name,id){draft={...EMPTY,...next};if(name!==undefined)draftName=name;if(id!==undefined)editId=id;if(Object.values(draft).some(Boolean)||(id!==undefined&&id!==null))builderAct=true;persistDraft();outfitDirty=true} // 화면에 반영되기 전까지 다시 그릴 대상
+  // id를 넘기면(불러오기·저장·새로 시작) 그때의 칸·이름을 고치는 기준으로 둔다
+  function setDraft(next,name,id){draft={...EMPTY,...next};if(name!==undefined)draftName=name;if(id!==undefined){editId=id;editBase=id!==null&&id!==undefined?{slots:{...draft},name:draftName}:null}persistDraft();outfitDirty=true} // 화면에 반영되기 전까지 다시 그릴 대상
 
   // ---------- 화면 조각 ----------
   function tileHTML(slotKey,label,item,opts){
@@ -85,21 +96,6 @@
     }).join('');
     return `<div class="fl${opts.small?' small':''}">${body||'<div class="fl-row"><div class="fl-tile empty"><span>옷 없음</span></div></div>'}</div>`;
   }
-  function itemHTML(o){
-    return `<div class="of-item" data-of="${esc(String(o.id))}">
-      <div class="of-thumb">${flatLayHTML(o.slots,{small:true})}</div>
-      <div class="of-info"><div class="title">${esc(o.name)}${o.id===editId?' <span class="badge">편집 중</span>':''}</div>
-        <div class="small muted">${esc(fmtDate(new Date(o.createdAt||Date.now())))}${o.worn.length?` · ${o.worn.length}회 입음 · 마지막 ${esc(lastWorn(o).slice(5).replace('-','/'))}`:''}</div>
-        <div class="actions"><button type="button" class="ghost" onclick="OF.load(${arg(o.id)})">불러오기</button><button type="button" class="ghost" onclick="OF.wear(${arg(o.id)})">오늘 입음</button><button type="button" class="ghost" onclick="OF.rename(${arg(o.id)})">이름</button><button type="button" class="ghost" onclick="OF.del(${arg(o.id)})">삭제</button></div>
-      </div></div>`;
-  }
-  function listHTML(sorted){
-    if(!sorted.length)return '<div class="empty">저장한 코디가 없습니다.<br>위에서 옷을 골라 저장하세요.</div>';
-    const chips=[['recent','최근 저장'],['most','많이 입은 순'],['last','최근 입은 순']].map(([k,l])=>`<button type="button" class="chip${sortKey===k?' on':''}" onclick="OF.sort(${arg(k)})">${l}</button>`).join('');
-    const shown=sorted.slice(0,listLimit),rest=sorted.length-shown.length;
-    return `<div class="chips">${chips}</div>`+shown.map(o=>{try{return itemHTML(o)}catch(e){console.error('outfit item',e);return '<div class="of-item small muted">읽을 수 없는 코디입니다.</div>'}}).join('')
-      +(rest>0?`<button type="button" class="secondary of-more" onclick="OF.more()">더 보기 (${rest}개 남음)</button>`:'');
-  }
   function calHTML(wornByDate){
     const cells=monthCells(calMonth),t=today(),days=Object.keys(wornByDate).filter(d=>d.startsWith(calMonth)).length;
     const grid=cells.map(d=>{
@@ -112,45 +108,47 @@
     if(calDay){
       const list=wornByDate[calDay]||[],future=calDay>t;
       detail=`<div class="cal-day"><div class="row" style="align-items:center"><b style="flex:1">${esc(fmtKo(calDay))}</b>${future?'<span class="small muted" style="flex:none">미래 날짜는 기록할 수 없습니다</span>':`<button type="button" class="ghost" style="flex:none" ${outfits.length?'':'disabled'} onclick="OF.addWorn(${arg(calDay)})">이 날 기록 추가</button>`}</div>
-        ${list.length?list.map(o=>`<div class="of-item"><div class="of-thumb">${flatLayHTML(o.slots,{small:true})}</div><div class="of-info"><div class="title">${esc(o.name)}</div><div class="small muted">${o.worn.length}회 입음</div><div class="actions"><button type="button" class="ghost" onclick="OF.load(${arg(o.id)})">불러오기</button><button type="button" class="ghost" onclick="OF.unwear(${arg(o.id)},${arg(calDay)})">기록 삭제</button></div></div></div>`).join(''):'<p class="small muted" style="text-align:center;padding:10px 0">기록이 없습니다.</p>'}</div>`;
+        ${list.length?list.map(o=>`<div class="of-item"><div class="of-thumb">${flatLayHTML(o.slots,{small:true})}</div><div class="of-info"><div class="title">${esc(o.name)}</div><div class="small muted">${o.worn.length}회 입음</div><div class="actions"><button type="button" class="ghost" onclick="OF.detail(${arg(o.id)})">보기</button><button type="button" class="ghost" onclick="OF.unwear(${arg(o.id)},${arg(calDay)})">기록 삭제</button></div></div></div>`).join(''):'<p class="small muted" style="text-align:center;padding:10px 0">기록이 없습니다.</p>'}</div>`;
     }else detail='<p class="small muted" style="text-align:center">날짜를 누르면 그날 입은 코디를 보고, 지난 날짜에 기록을 추가할 수 있습니다.</p>';
     return `<div class="row" style="align-items:center;margin-bottom:6px"><button type="button" class="ghost cal-nav" onclick="OF.month(-1)" aria-label="이전 달">‹</button><b style="flex:1;text-align:center">${Number(calMonth.slice(0,4))}년 ${Number(calMonth.slice(5))}월 <span class="small muted">${days}일 기록</span></b><button type="button" class="ghost cal-nav" onclick="OF.month(1)" aria-label="다음 달">›</button></div>
       <div class="cal head">${WEEK.map(w=>`<div>${w}</div>`).join('')}</div><div class="cal">${grid}</div>${detail}`;
   }
+  // 만들기 화면: 목록 대신 코디 탭 전체를 쓴다. '‹ 목록'으로 돌아가도 초안은 기기에 남는다(DRAFT_KEY)
   function builderHTML(){
     const editing=editId?outfits.find(o=>o.id===editId):null;
     const btns=editing
       ?`<button type="button" ${saving?'disabled':''} onclick="OF.save()">덮어쓰기</button><button type="button" class="secondary" ${saving?'disabled':''} onclick="OF.saveNew()">새로 저장</button>`
       :`<button type="button" ${saving?'disabled':''} onclick="OF.save()">저장</button>`;
-    const filled=Object.values(draft).filter(Boolean).length,open=builderAct||(builderPref??OF.hasDraft());
-    return `<details class="card of-builder" ${open?'open':''}><summary onclick="OF.builderToggle(!this.parentNode.open)"><b>코디 만들기</b> <span class="small muted">${editing?'고치는 중':filled?`${filled}칸 채움`:'눌러서 새 코디 만들기'}</span></summary>
-        ${editing?`<p class="small of-editing">저장된 코디 <b>${esc(norm(editing).name)}</b>을(를) 고치는 중입니다. 칸을 바꾼 뒤 '덮어쓰기'를 누르세요. <button type="button" class="ghost" onclick="OF.clearAll()">새 코디 시작</button></p>`:'<p class="small">칸을 눌러 옷을 고르세요. 옷장에서 옷 사진을 누르고 \'코디에 담기\'로도 넣을 수 있습니다. 아우터·가방·액세서리는 비워도 됩니다.</p>'}
+    return `<div class="card of-builder"><div class="of-bar"><button type="button" class="ghost of-back" onclick="OF.back()">‹ 목록</button><h2>${editing?'코디 고치기':'새 코디'}</h2></div>
+        ${editing?`<p class="small of-editing">저장된 코디 <b>${esc(norm(editing).name)}</b>을(를) 고치는 중입니다. 칸을 바꾼 뒤 '덮어쓰기'를 누르세요. ${OF.hasDraft()?`<button type="button" class="ghost" onclick="OF.revert()">저장된 대로 되돌리기</button>`:''}<button type="button" class="ghost" onclick="OF.clearAll()">새 코디 시작</button></p>`:'<p class="small">칸을 눌러 옷을 고르세요. 옷장에서 옷 사진을 누르고 \'코디에 담기\'로도 넣을 수 있습니다. 아우터·가방·액세서리는 비워도 됩니다.</p>'}
         <div class="row" style="margin-bottom:10px"><button type="button" class="secondary" onclick="OF.fillRec()">추천으로 채우기</button></div>
         ${flatLayHTML(draft,{editable:true})}
         <input id="outfitName" style="margin-top:12px" placeholder="코디 이름 (비우면 날짜로)" value="${esc(draftName)}" oninput="OF.name(this.value)" aria-label="코디 이름">
-        <div class="row" style="margin-top:4px">${btns}<button type="button" class="secondary" onclick="OF.clearAll()">비우기</button></div>
-      </details>`;
+        <div class="row of-save">${btns}<button type="button" class="secondary" onclick="OF.clearAll()">비우기</button></div>
+      </div>`; // 저장 줄은 화면 아래(하단 탭 위)에 붙어 있어 칸을 고르다 바로 누를 수 있다
   }
-  function sortedOutfits(){
-    const sorted=outfits.map(norm);
-    if(sortKey==='most')sorted.sort((a,b)=>b.worn.length-a.worn.length);
-    else if(sortKey==='last')sorted.sort((a,b)=>lastWorn(b)>lastWorn(a)?1:lastWorn(b)<lastWorn(a)?-1:0);
-    else sorted.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    return sorted;
+  function resumeHTML(){
+    if(!OF.hasDraft())return '';
+    const n=Object.values(draft).filter(Boolean).length,editing=editId?outfits.find(o=>o.id===editId):null;
+    return `<div class="of-resume"><span>${editing?`'${esc(norm(editing).name)}' 고치던 내용이 있습니다`:`만들던 코디가 있습니다 (${n}칸)`}</span><button type="button" class="ghost" onclick="OF.builder()">이어서 만들기</button></div>`;
   }
   function renderOutfitPage(){
     const sec=$('outfit');if(!sec)return;
     outfitDirty=false;
     if(!calMonth){calMonth=today().slice(0,7);calAutoMonth=calMonth}
     sanitizeDraft();
-    const sorted=sortedOutfits();
-    const wornByDate={};for(const o of sorted)for(const d of o.worn)(wornByDate[d]=wornByDate[d]||[]).push(o);
-    sec.innerHTML=builderHTML()+`<div class="card"><h2>저장한 코디 <span class="badge">${outfits.length}개</span></h2>
-        <div class="chips">${[['list','목록'],['cal','캘린더']].map(([k,l])=>`<button type="button" class="chip${view===k?' on':''}" onclick="OF.view(${arg(k)})">${l}</button>`).join('')}</div>
-        ${view==='list'?listHTML(sorted):calHTML(wornByDate)}
+    if(view==='builder'){sec.innerHTML=builderHTML();return}
+    const all=outfits.map(norm),live=all.filter(o=>!o.archived).length;
+    let body='';
+    if(view==='cal'){const wornByDate={};for(const o of all)for(const d of o.worn)(wornByDate[d]=wornByDate[d]||[]).push(o);body=calHTML(wornByDate)}
+    else body=window.OFL?OFL.html():'<p class="small">코디 목록 기능 파일을 불러오지 못했습니다. 강제 새로고침 후 다시 시도해주세요.</p>';
+    sec.innerHTML=`<div class="card"><div class="row of-head"><h2>저장한 코디 <span class="badge">${live}개</span></h2><button type="button" class="of-new" onclick="OF.newOutfit()">+ 새 코디</button></div>
+        ${resumeHTML()}
+        <div class="chips">${[['list','모아보기'],['cal','캘린더']].map(([k,l])=>`<button type="button" class="chip${view===k?' on':''}" onclick="OF.view(${arg(k)})">${l}</button>`).join('')}</div>
+        ${body}
       </div>`;
   }
-  function refreshOutfitView(){if(outfitVisible())renderOutfitPage();else outfitDirty=true}
+  function refreshOutfitView(){if(outfitVisible())renderOutfitPage();else outfitDirty=true;if(window.OFL&&OFL.isOpen())OFL.renderDetail()}
 
   // ---------- 고르기 시트 ----------
   function pickCandidates(){
@@ -188,9 +186,20 @@
     renderPickGrid();
     $('pickModal').classList.add('open');
   }
+  // 지난 날짜에 입은 코디 고르기: 3열 격자와 검색(코디 이름·든 옷). 즐겨찾기 먼저, 보관한 코디는 뒤에
+  function wornCandidates(){
+    const ts=terms(wornQuery),h=o=>[o.name,...slotIds(o).map(id=>{const c=byId(id);return c?hay(c):''})].join(' ').toLowerCase();
+    return outfits.map(norm).filter(o=>!ts.length||ts.every(t=>h(o).includes(t))).sort((a,b)=>(!!a.archived-!!b.archived)||(!!b.fav-!!a.fav)||(b.createdAt||0)-(a.createdAt||0));
+  }
+  function renderWornGrid(){
+    const box=$('wornGrid');if(!box)return;const list=wornCandidates();
+    box.innerHTML=list.length?`<div class="ofl-grid">${list.map(o=>{const done=o.worn.includes(addWornFor);return `<button type="button" class="ofl-card${done?' done':''}" ${done?'disabled':''} onclick="OF.chooseWorn(${arg(o.id)})">${window.OFL?OFL.coverHTML(o):flatLayHTML(o.slots,{small:true})}${o.fav?'<b class="ofl-star" aria-hidden="true">★</b>':''}<span class="ofl-name">${esc(o.name)}</span><span class="ofl-meta">${done?'이 날 기록됨':o.archived?'보관한 코디':o.worn.length?`${o.worn.length}회 입음`:'기록 없음'}</span></button>`}).join('')}</div>`
+      :'<p class="small" style="padding:14px 0">맞는 코디가 없습니다.</p>';
+  }
   function renderWornPick(){
-    const sorted=outfits.map(norm).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    $('wornBody').innerHTML=`<div class="pick-head"><div class="row" style="align-items:center"><h2 style="margin:0;flex:1">${esc(fmtKo(addWornFor))} 입은 코디 고르기</h2><button type="button" class="pick-close" aria-label="닫기" onclick="OF.closeWorn()">×</button></div></div>`+sorted.map(o=>{const done=o.worn.includes(addWornFor);return `<div class="of-item${done?' done':''}" ${done?'':`role="button" tabindex="0" ${keyAttr} onclick="OF.chooseWorn(${arg(o.id)})"`}><div class="of-thumb">${flatLayHTML(o.slots,{small:true})}</div><div class="of-info"><div class="title">${esc(o.name)}</div><div class="small muted">${o.worn.length?`${o.worn.length}회 입음`:'기록 없음'}${done?' · 이 날 기록됨':''}</div></div></div>`}).join('');
+    $('wornBody').innerHTML=`<div class="pick-head"><div class="row" style="align-items:center"><h2 style="margin:0;flex:1">${esc(fmtKo(addWornFor))} 입은 코디 고르기</h2><button type="button" class="pick-close" aria-label="닫기" onclick="OF.closeWorn()">×</button></div>
+      <input id="wornSearch" type="search" placeholder="코디·옷 이름 검색" aria-label="코디 검색" autocomplete="off" value="${esc(wornQuery)}" oninput="OF.wornQuery(this.value)"></div><div id="wornGrid"></div>`;
+    renderWornGrid();
     $('wornModal').classList.add('open');
   }
 
@@ -201,7 +210,7 @@
   // 코디만 바뀐 경우: 옷 전체를 다시 읽지 않고 outfits만 읽어 코디 화면과 개수만 갱신한다
   let closetDirty=false;
   async function refreshOutfits(){
-    outfits=await all('outfits');closetDirty=true; // 옷장 카드의 '코디 n'
+    outfits=await all('outfits');closetDirty=true;sanitizeDraft(); // 옷장 카드의 '코디 n', 지워지거나 바뀐 코디를 고치던 초안
     if(typeof invalidateBackupShare==='function')invalidateBackupShare();
     if(typeof renderCounts==='function')renderCounts();else{const sv=$('saved');if(sv)sv.textContent=outfits.length}
     refreshOutfitView();
@@ -217,9 +226,9 @@
     if(!Object.values(slots).some(Boolean))return say('옷을 먼저 골라주세요');
     const target=!asNew&&editId?outfits.find(o=>o.id===editId):null;
     const name=draftName.trim()||(target?norm(target).name:defaultName());
-    if(target){const n=norm(target),changed=Object.keys(EMPTY).some(k=>(n.slots[k]||null)!==(slots[k]||null));
+    if(target){const n=norm(target),was=liveOf(n.slots),changed=Object.keys(EMPTY).some(k=>(was[k]||null)!==(slots[k]||null));
       if(changed&&n.worn.length&&!confirm(`이 코디는 ${n.worn.length}번 입은 기록이 있습니다. 칸을 바꿔 덮어쓰면 그 기록이 새로 넣은 옷의 기록이 됩니다. 덮어쓸까요?\n기록을 지키려면 취소하고 '새로 저장'을 누르세요.`))return;}
-    saving=true;refreshOutfitView();
+    saving=true;refreshOutfitView();let shown=null;
     try{
       let savedId=target?target.id:null,overwrote=false;
       await transaction(['outfits'],'readwrite',tx=>{
@@ -227,23 +236,34 @@
         if(target){const q=os.get(target.id);q.onsuccess=()=>{if(q.result){os.put({...q.result,name,slots,updatedAt:Date.now()});overwrote=true}else{savedId=crypto.randomUUID();os.add({id:savedId,name,slots,createdAt:Date.now(),updatedAt:Date.now(),worn:[]})}}}
         else{savedId=crypto.randomUUID();os.add({id:savedId,name,slots,createdAt:Date.now(),updatedAt:Date.now(),worn:[]})}
       });
-      // 저장한 코디를 계속 편집 대상으로 둔다: 다시 누르면 복제가 아니라 덮어쓰기
-      setDraft(slots,name,savedId);builderAct=false;saving=false;await refreshOutfits(); // 저장하면 만들기 칸을 접어 저장 코디가 보이게
-      say(overwrote?'코디를 덮어썼습니다':'코디를 저장했습니다');
+      // 저장한 코디를 계속 편집 대상으로 둔다: 다시 고치면 복제가 아니라 덮어쓰기('+ 새 코디'는 빈 칸으로 시작)
+      setDraft(slots,name,savedId);saving=false;view='list';await refreshOutfits(); // 저장하면 목록으로 돌아가 저장한 코디를 보여 준다
+      shown=savedId;say(overwrote?'코디를 덮어썼습니다':'코디를 저장했습니다');
     }catch(e){reportError(e,'코디를 저장하지 못했습니다.')}
-    finally{saving=false;refreshOutfitView()}
+    finally{saving=false;refreshOutfitView();if(shown!==null&&view==='list'&&outfitVisible()&&window.OFL)OFL.reveal(shown)}
   }
   async function renameOutfit(id){
     const o=outfits.find(x=>x.id===id);if(!o)return;
     const v=prompt('코디 이름',norm(o).name);if(v===null)return;const name=v.trim();if(!name)return say('이름을 입력해주세요');
-    try{await transaction(['outfits'],'readwrite',tx=>{const os=tx.objectStore('outfits'),q=os.get(id);q.onsuccess=()=>{if(q.result)os.put({...q.result,name,updatedAt:Date.now()})}});if(editId===id){draftName=name;persistDraft()}await refreshOutfits();say('이름을 바꿨습니다')}
+    try{await transaction(['outfits'],'readwrite',tx=>{const os=tx.objectStore('outfits'),q=os.get(id);q.onsuccess=()=>{if(q.result)os.put({...q.result,name,updatedAt:Date.now()})}});if(editId===id){const followed=!editBase||!draftName.trim()||draftName.trim()===(editBase.name||'').trim();if(editBase)editBase={...editBase,name};if(followed)draftName=name;persistDraft()}await refreshOutfits();say('이름을 바꿨습니다')} // 고치는 기준 이름도 함께(안 그러면 그 코디를 지울 때 고친 초안으로 남았다)
     catch(e){reportError(e,'이름을 바꾸지 못했습니다.')}
   }
   async function deleteOutfit(id){
     const o=outfits.find(x=>x.id===id);
     if(!confirm(`'${o?norm(o).name:'이 코디'}'를 삭제할까요? 옷은 그대로 남고, 이 코디의 착용 기록(캘린더)은 사라집니다.`))return;
-    try{await transaction(['outfits'],'readwrite',tx=>{tx.objectStore('outfits').delete(id)});if(typeof addTomb==='function')addTomb('o',id);if(editId===id){editId=null;persistDraft()}await refreshOutfits();say('삭제했습니다')}
+    try{await transaction(['outfits'],'readwrite',tx=>{tx.objectStore('outfits').delete(id)});if(typeof addTomb==='function')addTomb('o',id);await refreshOutfits();say('삭제했습니다')} // 초안 정리는 sanitizeDraft
     catch(e){reportError(e,'삭제하지 못했습니다.')}
+  }
+  // 즐겨찾기·보관: 끌 때도 칸을 지우지 않고 false로 남기고, 칸마다 누른 시각(favAt·archivedAt)을 찍는다. updatedAt(이름·칸을 고친 시각)은 찍지 않는다:
+  // 찍으면 다른 기기에서 먼저 고친 이름·칸이 합치기에서 별표 하나에 밀려 사라진다. 합치기는 이름·칸은 updatedAt, 별표·보관은 이 시각으로 고른다
+  async function setFlag(id,key,on){
+    let found=false;
+    try{
+      await transaction(['outfits'],'readwrite',tx=>{const os=tx.objectStore('outfits'),q=os.get(id);q.onsuccess=()=>{if(q.result){found=true;os.put({...q.result,[key]:!!on,[key+'At']:Date.now()})}}});
+      await refreshOutfits();
+      if(!found)return say('코디를 찾지 못했습니다');
+      say(key==='fav'?(on?'즐겨찾기에 넣었습니다':'즐겨찾기를 풀었습니다'):(on?"보관했습니다. 목록의 '보관함'에서 볼 수 있습니다":'보관을 풀었습니다'));
+    }catch(e){reportError(e,key==='fav'?'즐겨찾기를 바꾸지 못했습니다.':'보관을 바꾸지 못했습니다.')}
   }
   async function markWorn(id,date){
     if(!isDate(date))return;
@@ -288,17 +308,19 @@
     const dirty=typeof editDirty==='function'?editDirty():editFormDirty(c);
     if(dirty&&!confirm('바꾼 사진과 수정 내용은 저장되지 않습니다. 저장하지 않고 코디에 담을까요?'))return;
     if(typeof closeEdit==='function'&&closeEdit()===false)return;
-    setDraft({...draft,[slot]:c.id});
+    // 만들기 화면 밖에서 담을 때 초안이 저장한 그대로(방금 저장·되돌아옴)면 그 코디를 고치지 않고 새 코디로 시작한다
+    if(view!=='builder'&&!OF.hasDraft())setDraft({...EMPTY,[slot]:c.id},'',null);else setDraft({...draft,[slot]:c.id});view='builder';
     const btn=[...document.querySelectorAll('nav button')].find(b=>(b.getAttribute('onclick')||'').includes("'outfit'"));
     if(btn)showPage('outfit',btn);else refreshOutfitView();
     window.scrollTo(0,0);say(`${SLOTS.find(s=>s.key===slot).label} 칸에 담았습니다`);
   }
-  function gotoOutfitTab(){const btn=[...document.querySelectorAll('nav button')].find(b=>(b.getAttribute('onclick')||'').includes("'outfit'"));if(btn)showPage('outfit',btn);else refreshOutfitView();window.scrollTo(0,0)}
+  // 코디 탭으로 가서 지금 view를 그린다(보이는 중이면 바로, 아니면 탭을 열 때 그림)
+  function gotoOutfitTab(){outfitDirty=true;const btn=[...document.querySelectorAll('nav button')].find(b=>(b.getAttribute('onclick')||'').includes("'outfit'"));if(btn&&!outfitVisible())showPage('outfit',btn);else refreshOutfitView();window.scrollTo(0,0)}
   function useRec(slots,noAsk){
     const next={...EMPTY};for(const k in EMPTY){const id=slots&&slots[k];next[k]=id&&byId(id)?id:null}
     if(!Object.values(next).some(Boolean)){say('담을 추천 결과가 없습니다');return false}
     if(!noAsk&&OF.hasDraft()&&!confirm('만들던 코디 초안을 추천 결과로 바꿀까요?'))return false;
-    setDraft(next,'',null);gotoOutfitTab();say('추천을 코디 칸에 담았습니다. 바꿀 칸을 누른 뒤 저장하세요.');return true;
+    setDraft(next,'',null);view='builder';gotoOutfitTab();say('추천을 코디 칸에 담았습니다. 바꿀 칸을 누른 뒤 저장하세요.');return true;
   }
   // 코디 탭 '추천으로 채우기': 코디 추천 탭의 목적·날씨 설정으로 가장 좋은 조합부터, 누를 때마다 상의·하의가 다른 조합(설정마다 따로 기억)
   let fill={key:'',seen:new Set(),avoid:{tops:new Set(),bottoms:new Set(),items:new Set()},last:null};
@@ -379,10 +401,42 @@
 .fl-x{position:absolute;top:0;right:0;width:40px;height:40px;padding:0;background:transparent;border-radius:0}
 .fl-x i{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:#171717;color:#fff;font-size:15px;line-height:22px;font-style:normal;text-align:center}
 .fl.small{gap:4px;max-width:150px}.fl.small .fl-row{gap:4px}.fl.small .fl-tile{border-radius:8px;font-size:10px}.fl.small .fl-row.n3 .fl-tile{max-width:calc(33.333% - 3px)}
-.of-item{display:flex;gap:10px;background:#f7f7f7;border-radius:15px;padding:9px;margin-top:8px}.of-builder>summary{cursor:pointer;padding:2px 0;font-size:16px}.of-builder[open]>summary{margin-bottom:8px}.of-related{margin:8px 0;background:#f7f7f7;border-radius:12px;padding:8px 10px}.of-related>summary{cursor:pointer;font-weight:700;font-size:14px}.of-rel-strip{display:flex;gap:8px;overflow-x:auto;padding:8px 0 2px;-webkit-overflow-scrolling:touch}.of-rel{flex:none;width:118px;background:#fff;border:1px solid #eee;border-radius:12px;padding:6px;color:#222;text-align:left;font-weight:400}.of-rel .of-thumb{width:100%}.of-flash{outline:3px solid #f59e0b;outline-offset:2px;transition:outline-color .4s}.of-rel-more p{margin:8px 0 0}.of-co{display:flex;gap:8px;overflow-x:auto;padding:2px 0}.of-co-item{flex:none;width:72px;font-size:11px;color:#555}.of-co-item img{width:72px;height:72px;object-fit:cover;border-radius:10px;display:block;background:#eee}.pitem{position:relative}.pitem .pcount{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.62);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px}
+.of-item{display:flex;gap:10px;background:#f7f7f7;border-radius:15px;padding:9px;margin-top:8px}.of-related{margin:8px 0;background:#f7f7f7;border-radius:12px;padding:8px 10px}.of-related>summary{cursor:pointer;font-weight:700;font-size:14px}.of-rel-strip{display:flex;gap:8px;overflow-x:auto;padding:8px 0 2px;-webkit-overflow-scrolling:touch}.of-rel{flex:none;width:118px;background:#fff;border:1px solid #eee;border-radius:12px;padding:6px;color:#222;text-align:left;font-weight:400}.of-rel .of-thumb{width:100%}.of-flash{outline:3px solid #f59e0b;outline-offset:2px;transition:outline-color .4s}.of-rel-more p{margin:8px 0 0}.of-co{display:flex;gap:8px;overflow-x:auto;padding:2px 0}.of-co-item{flex:none;width:72px;font-size:11px;color:#555}.of-co-item img{width:72px;height:72px;object-fit:cover;border-radius:10px;display:block;background:#eee}.pitem{position:relative}.pitem .pcount{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.62);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px}
 .of-item.done{opacity:.45}
 .of-thumb{width:150px;flex:none}.of-info{min-width:0;flex:1;display:flex;flex-direction:column}.of-info .actions{margin-top:auto;flex-wrap:wrap}.of-info .actions button{flex:1 1 auto;white-space:nowrap;padding:8px 6px;min-height:40px}
-.of-more{width:100%;margin-top:10px}
+.of-head{align-items:center}.of-head h2{margin:0;flex:1;min-width:0}.of-head .badge{white-space:nowrap;display:inline-block;vertical-align:middle}.of-new{flex:none;padding:10px 14px;white-space:nowrap}
+#oflSearch{flex:1 1 140px;min-width:0}#oflSort{flex:0 1 auto;max-width:46%}
+.ofl-itemrow{display:flex;align-items:center;gap:8px;background:#f0f7f1;border-radius:12px;padding:6px 6px 6px 10px;margin:4px 0}.ofl-itemrow span{flex:1;min-width:0;font-size:13px;overflow-wrap:anywhere}.ofl-itemrow button{flex:none}
+.of-resume{display:flex;align-items:center;gap:8px;background:#f0f7f1;border-radius:12px;padding:8px 10px;margin:10px 0 2px}.of-resume span{flex:1;font-size:13px}.of-resume button{flex:none}
+.of-save{position:sticky;bottom:calc(54px + env(safe-area-inset-bottom));background:#fff;margin:4px -4px 0;padding:8px 4px 4px;z-index:3}
+.of-bar{display:flex;align-items:center;gap:8px;margin-bottom:10px}.of-bar h2{margin:0;flex:1}.of-back{flex:none;min-height:44px;padding:8px 12px;font-size:14px}
+.of-rel-all{display:flex;align-items:center;justify-content:center;text-align:center;font-weight:700;font-size:12px;color:#166534;width:96px}
+.ofl-tools input,.ofl-tools select{margin:2px 0}.ofl-chips{margin-top:4px}
+.ofl-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
+.ofl-card{position:relative;display:flex;flex-direction:column;align-items:stretch;background:transparent;color:#222;padding:0;border-radius:12px;text-align:left;font-weight:400;min-width:0}
+.ofl-card.done{opacity:.45}
+.ofl-cover{aspect-ratio:1;display:grid;gap:2px;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;background:#e7e7e7;border-radius:12px;overflow:hidden;width:100%}
+.ofl-cover img,.sheet .ofl-cover img{width:100%;height:100%;max-height:none;object-fit:contain;background:#fff;border-radius:0;display:block;min-width:0;min-height:0}
+.ofl-cover.n1,.ofl-cover.n0{grid-template-columns:1fr;grid-template-rows:1fr}.ofl-cover.n2{grid-template-columns:1fr}.ofl-cover.n3 img:first-child{grid-column:span 2}
+.ofl-cover.n0{place-items:center;color:#888;font-size:11px}
+.ofl-name{display:block;font-size:12px;font-weight:600;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ofl-meta{display:block;font-size:11px;color:#777;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ofl-star{position:absolute;top:3px;left:5px;color:#f59e0b;font-size:16px;text-shadow:0 0 3px #fff,0 0 1px #fff}
+.ofl-edit{position:absolute;top:4px;right:4px;background:#166534;color:#fff;font-size:10px;padding:1px 6px;border-radius:8px}
+.ofl-more{width:100%;margin-top:10px}
+.ofl-sec{margin-top:12px}.ofl-count{margin:4px 0 0}
+.ofl-group{margin-top:6px;border-top:1px solid #eee}
+.ofl-ghead{display:flex;align-items:center;gap:6px;width:100%;background:transparent;color:#222;padding:10px 2px;border-radius:0;text-align:left;font-weight:400;min-height:44px}.ofl-ghead i{margin-left:auto;font-style:normal;color:#888}
+.ofl-favbtn{flex:none;width:44px;height:44px;padding:0;border-radius:50%;background:#f3f3f3;color:#999;font-size:22px;line-height:44px}.ofl-favbtn.on{color:#f59e0b}
+.ofl-detail-fl .fl{max-width:220px;margin:8px auto 0}.sheet .fl-tile img{max-height:none;border-radius:0;background:none}
+.ofl-main{margin-top:6px}.ofl-main button{flex:1}
+.ofl-items{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.ofl-it{display:flex;align-items:center;gap:10px;background:#f7f7f7;border-radius:12px;padding:6px 10px 6px 6px;color:#222;text-align:left;font-weight:400;min-height:56px;width:100%}
+.ofl-it img,.sheet .ofl-it img,.ofl-noimg{width:44px;height:44px;max-height:none;border-radius:8px;object-fit:cover;background:#eee;flex:none;display:block}
+.ofl-it>span:not(.ofl-noimg){flex:1;min-width:0;font-size:14px}.ofl-it i{font-style:normal;color:#999}.ofl-it.gone{opacity:.6}
+.ofl-menu{margin-top:12px;border-top:1px solid #eee;padding-top:10px}
+.ofl-archived{background:#fff7e6;border-radius:10px;padding:8px 10px;margin:8px 0 0}
+#wornBody .pick-head input{margin:6px 0 2px}
 .of-editing{background:#f0f7f1;border-radius:10px;padding:8px 10px}
 .of-editing .ghost{padding:4px 8px;margin-left:4px}
 @media (max-width:430px){.of-thumb{width:118px}.fl.small{max-width:118px}}
@@ -434,6 +488,7 @@
     const anchor=$('editPartial')||img;anchor.parentNode.insertBefore(d,anchor.nextSibling);
     const sel=$('editCategory');if(sel)sel.addEventListener('change',()=>syncRecBtn());
   }
+  // 보관한 코디까지 든 목록(입은 날·함께 입은 옷은 기록이라 보관한 코디도 센다). 띠와 '코디 n개'는 보관하지 않은 것만
   function relatedOf(id){return outfits.map(norm).filter(o=>Object.values(o.slots).some(v=>v===id)).sort((a,b)=>lastWorn(b)>lastWorn(a)?1:lastWorn(b)<lastWorn(a)?-1:(b.createdAt||0)-(a.createdAt||0))}
   // 이 옷을 입은 날: 이 옷이 든 코디의 착용 날짜(코디 탭 '오늘 입음'·캘린더 기록). 옷장 카드 '오늘 입음'은 날짜 목록이 없어 넣지 않는다
   function wornDaysOf(id,list){const days=new Set();for(const o of list)for(const d of o.worn)days.add(d);return [...days].sort().reverse()}
@@ -446,14 +501,15 @@
   let relatedPref=null;
   function renderRelated(){
     const d=$('ofRelated');if(!d)return;
-    const id=typeof editingId!=='undefined'?editingId:null,c=id===null?null:byId(id),list=c?relatedOf(id):[],days=c?wornDaysOf(id,list):[];
+    const id=typeof editingId!=='undefined'?editingId:null,c=id===null?null:byId(id),every=c?relatedOf(id):[],list=every.filter(o=>!o.archived),days=c?wornDaysOf(id,every):[];
     syncRecBtn(); // '이 옷으로 추천'은 액세서리·보관한 옷, 분류를 바꾸고 저장하기 전에는 없음
-    d.hidden=!list.length;
+    d.hidden=!list.length&&!days.length;
     if(d.hidden){d.querySelector('.of-rel-strip').innerHTML='';d.querySelector('.of-rel-more').innerHTML='';return}
     d.open=relatedPref===true;
-    d.querySelector('summary').textContent=`이 옷이 든 코디 ${list.length}개${days.length?` · 입은 날 ${days.length}일`:''}`;
-    d.querySelector('.of-rel-strip').innerHTML=list.map(o=>`<button type="button" class="of-rel" onclick="OF.showOutfit(${arg(o.id)})"><div class="of-thumb">${flatLayHTML(o.slots,{small:true})}</div><span class="small">${esc(o.name)}${o.worn.length?` · ${o.worn.length}회`:''}</span></button>`).join('');
-    const co=coWornOf(id,list),yr=today().slice(0,4),md=s=>`${s.slice(0,4)===yr?'':s.slice(2,4)+'/'}${Number(s.slice(5,7))}/${Number(s.slice(8))}`;
+    d.querySelector('summary').textContent=list.length?`이 옷이 든 코디 ${list.length}개${days.length?` · 입은 날 ${days.length}일`:''}`:`입은 날 ${days.length}일 (보관한 코디)`;
+    d.querySelector('.of-rel-strip').innerHTML=list.map(o=>`<button type="button" class="of-rel" onclick="OF.showOutfit(${arg(o.id)})"><div class="of-thumb">${flatLayHTML(o.slots,{small:true})}</div><span class="small">${esc(o.name)}${o.worn.length?` · ${o.worn.length}회`:''}</span></button>`).join('')
+      +(list.length>1?`<button type="button" class="of-rel of-rel-all" onclick="OF.showWith(${arg(id)})">이 옷이 든 코디<br>모두 보기 ›</button>`:'');
+    const co=coWornOf(id,every),yr=today().slice(0,4),md=s=>`${s.slice(0,4)===yr?'':s.slice(2,4)+'/'}${Number(s.slice(5,7))}/${Number(s.slice(8))}`;
     d.querySelector('.of-rel-more').innerHTML=(days.length?`<p class="small"><b>입은 날</b> ${days.slice(0,8).map(md).join(', ')}${days.length>8?` 외 ${days.length-8}일`:''} <span class="muted">(코디 기록)</span></p>`:'')
       +(co.items.length?`<p class="small" style="margin-bottom:4px"><b>${co.worn?'자주 함께 입은 옷':'같은 코디에 든 옷'}</b></p><div class="of-co">${co.items.map(x=>`<div class="of-co-item"><img src="${url(x.image)}" alt="" loading="lazy" decoding="async"><span>${esc(title(x))}</span></div>`).join('')}</div>`:'');
   }
@@ -471,20 +527,27 @@
     const btn=[...document.querySelectorAll('nav button')].find(b=>(b.getAttribute('onclick')||'').includes("'recommend'"));if(btn)showPage('recommend',btn);
     recommend();window.scrollTo(0,0);
   }
-  function showOutfit(id){
+  // 옷 창을 닫아도 되는지(저장 안 한 수정 확인) 묻고 닫는다
+  function leaveEdit(msg){
     const c=typeof editingId!=='undefined'?byId(editingId):null;
     const dirty=typeof editDirty==='function'?editDirty():c?editFormDirty(c):false;
-    if(dirty&&!confirm('바꾼 사진과 수정 내용은 저장되지 않습니다. 저장하지 않고 코디를 볼까요?'))return;
-    if(typeof closeEdit==='function'&&closeEdit()===false)return;
-    view='list';const sorted=sortedOutfits(),i=sorted.findIndex(o=>o.id===id);
-    if(i>=listLimit)listLimit=Math.ceil((i+1)/LIST_STEP)*LIST_STEP;
-    gotoOutfitTab();renderOutfitPage();
-    const el=[...document.querySelectorAll('#outfit .of-item[data-of]')].find(x=>x.dataset.of===String(id));
-    if(el){el.scrollIntoView({block:'center'});el.classList.add('of-flash');setTimeout(()=>el.classList.remove('of-flash'),2200)}
+    if(dirty&&!confirm(msg))return false;
+    if(typeof closeEdit==='function'&&closeEdit()===false)return false;
+    return true;
+  }
+  function showOutfit(id){
+    if(!leaveEdit('바꾼 사진과 수정 내용은 저장되지 않습니다. 저장하지 않고 코디를 볼까요?'))return;
+    view='list';gotoOutfitTab();
+    if(window.OFL)OFL.open(id);
+  }
+  // '모두 보기': 코디 탭 목록을 이 옷이 든 코디로 거른다(칩 '이 옷: …'으로 풀 수 있음)
+  function showWith(id){
+    if(!leaveEdit('바꾼 사진과 수정 내용은 저장되지 않습니다. 저장하지 않고 코디를 볼까요?'))return;
+    view='list';if(window.OFL)OFL.item(id);gotoOutfitTab();
   }
 
   window.OF={
-    pick(k){pickSlot=k;pickAll=false;pickQuery='';pickType='';renderPick()},
+    pick(k){if(view!=='builder'){view='builder';refreshOutfitView()}pickSlot=k;pickAll=false;pickQuery='';pickType='';renderPick()}, // 칸 고르기는 만들기 화면에서
     pickAll(){pickAll=!pickAll;pickType='';renderPick()},
     pickType(t){pickType=t;renderPick()},
     pickQuery(v){pickQuery=v;renderPickGrid()},
@@ -496,50 +559,66 @@
     name(v){draftName=v;persistDraft()},
     save(){locked(()=>saveOutfit(false))},
     saveNew(){locked(()=>saveOutfit(true))},
-    view(k){view=k;renderOutfitPage()},
-    sort(k){sortKey=k;listLimit=LIST_STEP;renderOutfitPage()},
-    more(){listLimit+=LIST_STEP;renderOutfitPage()},
-    load(id){const o=outfits.find(x=>x.id===id);if(!o)return;const n=norm(o),s={...EMPTY};for(const k in EMPTY)s[k]=byId(n.slots[k])?n.slots[k]:null;setDraft(s,n.name,o.id);renderOutfitPage();window.scrollTo(0,0);say('코디를 불러왔습니다. 칸을 바꾼 뒤 덮어쓰기를 누르세요.')},
+    view(k){view=k==='cal'?'cal':'list';renderOutfitPage()},
+    // '+ 새 코디': 저장 안 한 초안이 있으면 그것을 이어서(만들기 화면의 '비우기'로 새로 시작), 없으면 빈 칸으로
+    newOutfit(){if(!OF.hasDraft())setDraft({...EMPTY},'',null);OF.builder()},
+    builder(){view='builder';gotoOutfitTab()},
+    back(){view='list';renderOutfitPage();window.scrollTo(0,0)},
+    refreshList(){if(view==='list')refreshOutfitView()},
+    detail(id){if(window.OFL)OFL.open(id);else OF.load(id)},
+    // 고치기: 다른 코디를 만들던 중이면 먼저 묻는다
+    load(id){const o=outfits.find(x=>x.id===id);if(!o)return false;
+      if(editId===o.id&&OF.hasDraft()){view='builder';gotoOutfitTab();say("고치던 내용을 이어서 엽니다. 저장된 대로 돌리려면 '저장된 대로 되돌리기'를 누르세요.");return true}
+      if(OF.hasDraft()&&!confirm('만들던 코디가 있습니다. 저장하지 않고 이 코디를 불러올까요?'))return false;
+      const n=norm(o);setDraft(liveOf(n.slots),n.name,o.id);view='builder';gotoOutfitTab();say('코디를 불러왔습니다. 칸을 바꾼 뒤 덮어쓰기를 누르세요.');return true},
+    revert(){const o=editId?outfits.find(x=>x.id===editId):null;if(!o)return;if(!confirm('고친 내용을 버리고 저장된 대로 되돌릴까요?'))return;const n=norm(o);setDraft(liveOf(n.slots),n.name,o.id);refreshOutfitView()},
+    fav(id,on){locked(()=>setFlag(id,'fav',on))},
+    archive(id,on){locked(()=>setFlag(id,'archived',on))},
     wear(id){locked(()=>markWorn(id,today()))},
     rename(id){locked(()=>renameOutfit(id))},
     del(id){locked(()=>deleteOutfit(id))},
     month(k){calMonth=shiftMonth(calMonth,k);calDay=null;renderOutfitPage()},
     day(d){calDay=calDay===d?null:d;renderOutfitPage()},
     unwear(id,d){locked(()=>unmarkWorn(id,d))},
-    addWorn(d){if(d>today())return say('미래 날짜는 기록할 수 없습니다');addWornFor=d;renderWornPick()},
+    addWorn(d){if(d>today())return say('미래 날짜는 기록할 수 없습니다');addWornFor=d;wornQuery='';renderWornPick();const sh=$('wornModal').querySelector('.sheet');if(sh)sh.scrollTop=0},
+    wornQuery(v){wornQuery=v;renderWornGrid()},
     chooseWorn(id){const d=addWornFor;addWornFor=null;$('wornModal').classList.remove('open');if(d)locked(()=>markWorn(id,d))},
     closeWorn(){addWornFor=null;$('wornModal').classList.remove('open')},
     addToOutfit,
     showOutfit,
+    showWith,
     recWith,
     relatedToggle(v){relatedPref=v;try{localStorage.setItem('wardrobe.relatedOpen',v?'1':'0')}catch{}},
-    builderToggle(v){builderPref=v;builderAct=false;try{localStorage.setItem(BUILDER_KEY,v?'1':'0')}catch{}},
     editState(){return editId?{id:editId,clean:!OF.hasDraft()}:null},
     // 합치기 뒤: 고치던 코디가 바뀌었으면, 초안이 저장본 그대로였으면 새 내용으로 다시 채우고, 고치던 중이었으면 새 코디로 떼어 둔다
     afterMerge(ed,changed){if(!ed||!changed.has(ed.id)||editId!==ed.id)return;const o=outfits.find(x=>x.id===ed.id);if(!o)return;
-      if(ed.clean){const n=norm(o);setDraft(n.slots,n.name,o.id)}else{editId=null;persistDraft();say('다른 기기에서 바뀐 코디라, 고치던 내용은 새 코디로 두었습니다')}refreshOutfitView()},
+      if(ed.clean){const n=norm(o);setDraft(liveOf(n.slots),n.name,o.id)}else{editId=null;persistDraft();say('다른 기기에서 바뀐 코디라, 고치던 내용은 새 코디로 두었습니다')}refreshOutfitView()},
     useRec,
     fillRec,
     // 업데이트·새로고침 전에 index.html이 물어볼 수 있게: 저장하지 않은 코디 초안이 있는지
-    hasDraft(){const saved=editId?outfits.find(o=>o.id===editId):null;if(!Object.values(draft).some(Boolean))return false;if(!saved)return true;const n=norm(saved);return Object.keys(EMPTY).some(k=>(n.slots[k]||null)!==(draft[k]||null))||(draftName.trim()&&draftName.trim()!==n.name)},
-    get errors(){return renderErrors}
+    hasDraft(){sanitizeDraft();const saved=editId?outfits.find(o=>o.id===editId):null;if(!Object.values(draft).some(Boolean))return false;if(!saved)return true;const n=norm(saved),sl=liveOf(n.slots);return Object.keys(EMPTY).some(k=>(sl[k]||null)!==(draft[k]||null))||(draftName.trim()&&draftName.trim()!==n.name)},
+    get errors(){return renderErrors},
+    // outfit-list.js가 쓰는 도우미(읽기만)
+    util:{SLOTS,norm,byId,title,hay,terms,today,fmtDate,lastWorn,flatLayHTML,say,get editingId(){return editId}}
   };
 
   function init(){
-    try{dense=localStorage.getItem('wardrobe.dense')==='1';closetSort=localStorage.getItem('wardrobe.closetSort')||'recent';const bp=localStorage.getItem(BUILDER_KEY);builderPref=bp===null?null:bp==='1';relatedPref=localStorage.getItem('wardrobe.relatedOpen')==='1'}catch{}
+    try{dense=localStorage.getItem('wardrobe.dense')==='1';closetSort=localStorage.getItem('wardrobe.closetSort')||'recent';relatedPref=localStorage.getItem('wardrobe.relatedOpen')==='1';localStorage.removeItem('wardrobe.builderOpen')}catch{} // v4.8.6~4.10 만들기 칸 접기 설정은 v4.11에서 쓰지 않음
     injectCSS();ensureDOM();installClosetTools();installEditButton();installRelated();restoreDraft();
     const baseOpenEdit=window.openEdit;if(typeof baseOpenEdit==='function')window.openEdit=function(){baseOpenEdit.apply(this,arguments);safe(renderRelated,'이 옷이 든 코디')};
     const baseRender=window.render;
     window.render=function(){
-      closetDirty=false;baseRender.apply(this,arguments);
+      closetDirty=false;baseRender.apply(this,arguments);safe(sanitizeDraft,'코디 초안');
       safe(applyClosetTools,'옷장 검색');
       if(outfitVisible())safe(renderOutfitPage,'코디 화면');else outfitDirty=true; // 숨겨진 코디 화면은 보일 때 그린다
       if(pickSlot&&$('pickModal').classList.contains('open'))safe(renderPickGrid,'옷 고르기');
+      if(window.OFL&&OFL.isOpen())safe(()=>OFL.renderDetail(),'코디 상세');
+      if(addWornFor&&$('wornModal').classList.contains('open'))safe(renderWornGrid,'코디 고르기');
     };
     const baseShow=window.showPage;
     window.showPage=function(id){baseShow.apply(this,arguments);if(id==='outfit'&&outfitDirty)safe(renderOutfitPage,'코디 화면');if(id==='closet'&&closetDirty)render()};
     // 뒤로 가기 캐시에서 돌아오면 index.html이 URL을 모두 해제했으므로 열린 시트를 다시 그린다
-    window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(pickSlot)safe(renderPick,'옷 고르기');if(addWornFor)safe(renderWornPick,'코디 고르기')});
+    window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(pickSlot)safe(renderPick,'옷 고르기');if(addWornFor)safe(renderWornPick,'코디 고르기');if(window.OFL&&OFL.isOpen())safe(()=>OFL.renderDetail(),'코디 상세')});
     // 앱을 켜 둔 채 날짜·달이 바뀌면 '오늘'과 달력을 맞춘다(사용자가 다른 달로 옮겨 둔 경우는 그대로)
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')return;const m=today().slice(0,7);if(calMonth===calAutoMonth&&calMonth!==m){calMonth=m;calAutoMonth=m;calDay=null}refreshOutfitView()});
     // refresh()가 이미 끝나 첫 render가 지나갔으면 감싼 render로 다시 그린다. 아직이면 refresh가 감싼 render를 부른다

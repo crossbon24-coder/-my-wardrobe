@@ -6,7 +6,7 @@
    - version.json(업데이트 확인)은 저장하지 않는다. 같은 사이트의 GET만 다루고, 모델 CDN 등 외부 요청과 옷장 데이터(IndexedDB)는 건드리지 않는다. */
 const V = new URL(self.location).searchParams.get('v') || '0'; // 앱 버전(index.html이 sw.js?v=버전으로 등록). 버전이 바뀌면 서비스워커와 사본도 새로 만든다
 const CACHE = 'wardrobe-shell-' + V;
-const SHELL = ['./', `./outfits.js?v=${V}`, `./wardrobe-import.js?v=${V}`, `./recommend.js?v=${V}`, './shortcut-help.html', './product-shortcut.js', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
+const SHELL = ['./', `./outfit-list.js?v=${V}`, `./outfits.js?v=${V}`, `./wardrobe-import.js?v=${V}`, `./recommend.js?v=${V}`, './shortcut-help.html', './product-shortcut.js', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 // 앱 화면은 이 서비스워커 자리의 './'와 './index.html'뿐이다(예전에는 '/'로 끝나는 모든 경로를 앱 화면으로 보아, 하위 경로 화면이 앱 사본 자리를 덮을 수 있었다)
 const ROOT = new URL('./', self.location).pathname;
 const isPage = u => u.pathname === ROOT || u.pathname === ROOT + 'index.html';
