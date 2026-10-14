@@ -300,11 +300,12 @@
   let fill={key:'',seen:new Set(),avoid:{tops:new Set(),bottoms:new Set(),items:new Set()},last:null};
   const sameSlots=(a,b)=>!!a&&!!b&&Object.keys(EMPTY).every(k=>(a[k]||null)===(b[k]||null));
   function fillRec(){
-    if(typeof recommendCombos!=='function')return;
+    if(typeof recommendCombos!=='function')return say('추천 기능 파일을 불러오지 못했습니다. 강제 새로고침 후 다시 시도해주세요');
     const oc=$('occasion'),we=$('weather'),t=oc?+oc.value:2,w=we?we.value:'normal',key=t+'|'+w;
     if(fill.key!==key)fill={key,seen:new Set(),avoid:{tops:new Set(),bottoms:new Set(),items:new Set()},last:null};
-    let r=recommendCombos(t,w,fill.seen,1,fill.avoid);
-    if(!r.length&&fill.seen.size){fill.seen=new Set();fill.avoid={tops:new Set(),bottoms:new Set(),items:new Set()};r=recommendCombos(t,w,fill.seen,1,fill.avoid)}
+    const ro=typeof recOpts==='function'?recOpts(t,w):{}; // 지난날 본 조합은 뒤로
+    let r=recommendCombos(t,w,fill.seen,1,fill.avoid,ro);
+    if(!r.length&&fill.seen.size){fill.seen=new Set();fill.avoid={tops:new Set(),bottoms:new Set(),items:new Set()};r=recommendCombos(t,w,fill.seen,1,fill.avoid,ro)}
     if(!r.length)return say('상의와 하의를 먼저 등록해주세요');
     const fromFill=sameSlots(draft,fill.last); // 방금 채운 그대로면 묻지 않고 바꾼다
     if(!useRec(r[0].slots,fromFill))return;

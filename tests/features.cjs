@@ -688,7 +688,7 @@ async function check(name, fn, opts) {
   }, { iphone: true, standalone: true });
 
   await check('Version is the same in APP_VERSION, version.json, the visible labels and both cache-busting script URLs', async page => {
-    const r = await page.evaluate(async () => { const html = await (await fetch('./index.html', { cache: 'no-store' })).text(), v = (await (await fetch('./version.json', { cache: 'no-store' })).json()).version; return { v, app: APP_VERSION, label: html.includes(`현재 버전 <b>v${v}</b>`), foot: html.includes(`Wardrobe v${v}`), imp: html.includes(`wardrobe-import.js?v=${v}`), out: html.includes(`outfits.js?v=${v}`) }; });
+    const r = await page.evaluate(async () => { const html = await (await fetch('./index.html', { cache: 'no-store' })).text(), v = (await (await fetch('./version.json', { cache: 'no-store' })).json()).version; return { v, app: APP_VERSION, label: html.includes(`현재 버전 <b>v${v}</b>`), foot: html.includes(`Wardrobe v${v}`), imp: html.includes(`wardrobe-import.js?v=${v}`) && html.includes(`recommend.js?v=${v}`), out: html.includes(`outfits.js?v=${v}`) }; });
     assert.equal(r.app, r.v); assert.deepEqual([r.label, r.foot, r.imp, r.out], [true, true, true, true]);
   });
 
@@ -706,7 +706,7 @@ async function check(name, fn, opts) {
       const fails = u => fetch(u).then(() => false, () => true);
       const names = await caches.keys(), keys = (await (await caches.open(names[0])).keys()).map(k => new URL(k.url).pathname + new URL(k.url).search);
       await checkUpdate(true);
-      return { names, v: APP_VERSION, extras: typeof initWardrobeExtras, outfits: keys.includes(`/outfits.js?v=${APP_VERSION}`), imp: keys.includes(`/wardrobe-import.js?v=${APP_VERSION}`), junk: keys.filter(k => /[?&](t|refresh)=|version\.json/.test(k)),
+      return { names, v: APP_VERSION, extras: typeof initWardrobeExtras, outfits: keys.includes(`/outfits.js?v=${APP_VERSION}`), imp: keys.includes(`/wardrobe-import.js?v=${APP_VERSION}`) && keys.includes(`/recommend.js?v=${APP_VERSION}`), junk: keys.filter(k => /[?&](t|refresh)=|version\.json/.test(k)),
         version: await fails('./version.json'), other: await fails('./outfits.js?v=0.1'), al };
     });
     await context.setOffline(false);
@@ -1232,6 +1232,92 @@ async function check(name, fn, opts) {
     });
     assert.equal(r.afterReload.open, false); assert.ok(r.afterReload.firstY < 844, `first outfit at ${r.afterReload.firstY}`);
     assert.equal(r.pref, '1'); assert.equal(r.loadedOpen, true); assert.equal(r.tags, true);
+  });
+
+  await check('Recommend tab: "다른 추천 보기" sits above the results; the third card is a "new try" built from less-worn items; work recommendations warn when formal clothes are few', async page => {
+    const r = await page.evaluate(async () => {
+      const specs = [];
+      // 데이트: 많이 입은 셔츠·슬랙스(종류 가점으로 조금 높음 → 앞 두 조합)와 안 입은 티셔츠·데님(범위 안 → 새로운 시도)
+      for (let i = 0; i < 6; i++) specs.push({ id: 't' + i, category: '상의', type: i < 4 ? '셔츠' : '티셔츠', memo: '상의' + i, wearCount: i < 4 ? 20 : 0 });
+      for (let i = 0; i < 6; i++) specs.push({ id: 'b' + i, category: '하의', type: i < 4 ? '슬랙스' : '데님', memo: '하의' + i, wearCount: i < 4 ? 20 : 0 });
+      specs.push({ id: 's0', category: '신발', type: '스니커즈', memo: '스니커즈' });
+      await seed(specs); goto('코디 추천'); $('occasion').value = '2'; $('weather').value = 'normal'; recommend();
+      const first = document.querySelector('#result').firstElementChild, labels = [...document.querySelectorAll('#result .reccard .muted')].map(e => e.textContent);
+      const novel = recommendations[2], noteWeekend = !!document.querySelector('#result .warn');
+      $('occasion').value = '3'; recommend(); const note = document.querySelector('#result .warn')?.textContent || '';
+      return { firstIsMore: first.classList.contains('recmore'), label3: labels[2], novelLow: ['t4', 't5'].includes(novel.slots.top) && ['b4', 'b5'].includes(novel.slots.bottom), noteWeekend, note };
+    });
+    assert.equal(r.firstIsMore, true); assert.match(r.label3, /새로운 시도/); assert.equal(r.novelLow, true, 'new try uses unworn items');
+    assert.equal(r.noteWeekend, false); assert.match(r.note, /포멀 옷이 상의 0벌·하의 0벌/);
+  });
+
+  await check('Recommendation memory: reopening the tab the same day shows the last screen and continues from it; combos shown on earlier days move back; memory is device-only and survives a reload', async page => {
+    const r = await page.evaluate(async () => {
+      const specs = []; for (let i = 0; i < 8; i++) specs.push({ id: 't' + i, category: '상의', memo: '상의' + i }, { id: 'b' + i, category: '하의', memo: '하의' + i });
+      await seed(specs); goto('코디 추천'); $('occasion').value = '2'; $('weather').value = 'normal';
+      recommend(); const s1 = recommendations.map(c => c.key); recommend(true); const s2 = recommendations.map(c => c.key);
+      await refresh(); const cleared = document.getElementById('result').children.length === 0;
+      goto('옷장'); goto('코디 추천'); const restored = recommendations.map(c => c.key);
+      recommend(true); const s3 = recommendations.map(c => c.key), noRepeat = s3.every(k => !s1.includes(k) && !s2.includes(k));
+      // 어제 본 것으로 기록을 옮기고 새로 추천: 어제의 첫 화면 조합이 오늘 첫 화면에 다시 나오지 않아야 한다
+      const m = JSON.parse(localStorage.getItem('wardrobe.recMemory')), today = recDay(), y = new Date(today + 'T12:00:00'); y.setDate(y.getDate() - 1); // 추천의 하루는 새벽 4시에 바뀐다
+      const yd = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+      m.days = { [yd]: m.days[today] }; localStorage.setItem('wardrobe.recMemory', JSON.stringify(m));
+      recommend(); const fresh = recommendations.map(c => c.key);
+      return { cleared, sameAsLast: JSON.stringify(restored) === JSON.stringify(s2), noRepeat, movedBack: fresh.filter(k => s1.includes(k)).length };
+    });
+    assert.deepEqual(r, { cleared: true, sameAsLast: true, noRepeat: true, movedBack: 0 });
+    await page.reload(); await page.waitForFunction(() => window.OF && /옷 \d+벌/.test(document.getElementById('summary').textContent));
+    const kept = await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('wardrobe.recMemory') || '{"days":{}}').days).length);
+    assert.ok(kept >= 1);
+  });
+
+  await check('Diagnostics show version, device, counts and timings', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); goto('옷 등록'); const d = document.getElementById('diagBox'); d.open = true; await sleep(50);
+      return document.getElementById('diagText').textContent;
+    });
+    assert.match(r, /버전 v[\d.]+ · PC.*\n옷 6벌 · 코디 0개\n시작 \d+ms · 새로 읽기 \d+ms/);
+  });
+
+  await check('If recommend.js does not load, the closet still works and the recommend button explains the problem', async page => {
+    const r = await page.evaluate(async () => { await seed([{ id: 'x', category: '상의', memo: '셔츠' }]); goto('코디 추천'); recommend(); const msg = document.getElementById('result').textContent; goto('코디'); OF.fillRec(); await sleep(50); return { msg, cards: document.querySelectorAll('#items .item').length, fill: document.body.innerText.includes('추천 기능 파일을 불러오지 못했습니다. 강제 새로고침') }; });
+    assert.match(r.msg, /추천 기능 파일을 불러오지 못했습니다/); assert.equal(r.cards, 1); assert.equal(r.fill, true);
+  }, { block: ['/recommend.js'] });
+
+  await check('"New try" never uses out-of-season, sporty (date/work) or casual (work) items and is only labelled when it really is less worn; earlier-day penalties cannot break a coherent date combo', async page => {
+    const r = await page.evaluate(async () => {
+      const put = async spec => { await seed(spec.map(([id, category, type, season]) => ({ id, category, type, memo: type, season }))); await transaction(['clothes'], 'readwrite', tx => { const st = tx.objectStore('clothes'); for (const [id, , , , f, wc] of spec) { const q = st.get(id); q.onsuccess = () => st.put({ ...q.result, formality: f, wearCount: wc || 0, color: '회색' }); } }); await refresh(); };
+      // 출근·더움: 포멀 셔츠 2·슬랙스 3(많이 입음), 안 입은 여름 티셔츠·쇼츠·샌들, 안 입은 겨울 니트
+      await put([['tf1', '상의', '셔츠', '사계절', 3, 9], ['tf2', '상의', '셔츠', '사계절', 3, 9], ['bf1', '하의', '슬랙스', '사계절', 3, 9], ['bf2', '하의', '슬랙스', '사계절', 3, 9], ['bf3', '하의', '슬랙스', '사계절', 3, 9],
+        ['tc1', '상의', '티셔츠', '여름', 1], ['tc2', '상의', '티셔츠', '여름', 1], ['bc1', '하의', '쇼츠', '여름', 1], ['bc2', '하의', '쇼츠', '여름', 1], ['tw', '상의', '니트', '겨울', 3], ['sf', '신발', '구두', '사계절', 3], ['sc', '신발', '샌들', '여름', 1]]);
+      const kind = id => clothes.find(c => c.id === id);
+      const work = recommendCombos(3, 'hot', new Set(), 3, {}, { novelty: true }), w3 = work[2];
+      const workBad = work.filter(c => c.kind === 'new').some(c => [c.slots.top, c.slots.bottom].some(id => formalityLevel(kind(id).formality) !== 3 || weatherScore(kind(id), 'hot') <= 0));
+      // 보통 날씨 데이트: 안 입은 옷이 여름 옷뿐이면 새로운 시도 표시 없이 일반 조합
+      const date = recommendCombos(2, 'normal', new Set(), 3, {}, { novelty: true });
+      const dateNewSummer = date.some(c => c.kind === 'new' && [c.slots.top, c.slots.bottom].some(id => kind(id).season === '여름'));
+      // 어제 본 감점(최대)이 붙어도 데이트 1·2번 조합의 상의·하의 격식이 섞이지 않는다
+      const pen = { pair: () => 4, item: () => 2 }, d2 = recommendCombos(2, 'normal', new Set(), 2, {}, { pen });
+      const mixed = d2.some(c => formalityLevel(kind(c.slots.top).formality) !== formalityLevel(kind(c.slots.bottom).formality));
+      return { workBad, w3kind: w3 && w3.kind, dateNewSummer, mixed };
+    });
+    assert.equal(r.workBad, false); assert.equal(r.dateNewSummer, false); assert.equal(r.mixed, false);
+  });
+
+  await check('Recommendation memory is robust: a damaged entry or future-dated days do not stop recommending, and an edited garment stops the old screen from coming back', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); goto('코디 추천'); $('occasion').value = '2'; $('weather').value = 'normal';
+      const y = new Date(recDay() + 'T12:00:00'); y.setDate(y.getDate() - 1); const yd = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+      localStorage.setItem('wardrobe.recMemory', JSON.stringify({ v: 1, days: { [yd]: { '2|normal': null, '1|hot': { keys: 'x', items: 5 } }, '2099-01-01': { '2|normal': { keys: [], items: [], last: [] } } } }));
+      recommend(); const ok = recommendations.length > 0;
+      const mem = JSON.parse(localStorage.getItem('wardrobe.recMemory')), days = Object.keys(mem.days);
+      const shownTop = recommendations[0].slots.top;
+      await refresh(); openEdit(shownTop); document.getElementById('editMemo').value = '바꾼 이름'; await saveEdit();
+      goto('옷장'); goto('코디 추천'); const restored = document.getElementById('result').children.length > 0;
+      return { ok, noFuture: !days.includes('2099-01-01'), today: days.includes(recDay()), restored, errors: window.alerts.length };
+    });
+    assert.deepEqual(r, { ok: true, noFuture: true, today: true, restored: false, errors: 0 });
   });
 
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {
