@@ -33,6 +33,7 @@ async function fresh(opts = {}) {
   if (opts.standalone) await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { configurable: true, value: true }));
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(() => /옷 \d+벌/.test(document.getElementById('summary').textContent) && window.OF);
+  await page.evaluate(s => { REC_SEED = s; }, Number(process.env.WARDROBE_REC_SEED || 20261014)); // 추천 흔들기는 켠 채 날짜만 고정
   await page.evaluate(() => {
     window.alerts = []; window.confirms = []; window.confirmAnswer = true;
     window.confirmQueue = []; window.onConfirm = null;
@@ -563,7 +564,7 @@ async function check(name, fn, opts) {
       const specs = []; for (let i = 0; i < 4; i++) specs.push({ id: 'top' + i, category: '상의', memo: '상의' + i }, { id: 'bot' + i, category: '하의', memo: '하의' + i });
       await seed(specs); goto('코디'); await sleep(20);
       OF.fillRec(); const a = JSON.parse(localStorage.getItem('wardrobe.outfitDraft')).draft; OF.fillRec(); const b = JSON.parse(localStorage.getItem('wardrobe.outfitDraft')).draft;
-      const asked = confirms.length; OF.pick('top'); OF.choose('top3'); confirmAnswer = false; OF.fillRec(); const askedAfterManual = confirms.length;
+      const asked = confirms.length; OF.pick('top'); OF.choose(['top0', 'top1', 'top2', 'top3'].find(t => t !== b.top)); confirmAnswer = false; OF.fillRec(); const askedAfterManual = confirms.length; // 지금 칸과 다른 상의로 직접 바꾼다(날짜 흔들기로 추천이 top3를 고를 수도 있어서)
       return { asked, bothChanged: a.top !== b.top && a.bottom !== b.bottom, askedAfterManual };
     });
     assert.deepEqual(r, { asked: 0, bothChanged: true, askedAfterManual: 1 });
@@ -1127,6 +1128,110 @@ async function check(name, fn, opts) {
   await check('Pasting a bare app share link (onelink) says to run the app Shortcut first', async page => {
     const r = await page.evaluate(async () => { try { await productFromText('https://musinsa.onelink.me/PvkC/46vmn1qc'); return 'ok'; } catch (e) { return e.message; } });
     assert.match(r, /공유 링크입니다.*옷장 상품 가져오기\(앱\)/);
+  });
+
+  await check('Recommendations rotate shoes within the well-matching range (no single pair dominates, no dress shoes on a weekend), "fill from recommendation" rotates shoes too, and the daily shake changes the first screen by date only', async page => {
+    const r = await page.evaluate(async () => {
+      const specs = [];
+      for (let i = 0; i < 8; i++) specs.push({ id: 't' + i, category: '상의', type: '티셔츠', memo: '티' + i });
+      for (let i = 0; i < 8; i++) specs.push({ id: 'b' + i, category: '하의', type: '데님', memo: '데님' + i });
+      for (let i = 0; i < 5; i++) specs.push({ id: 's' + i, category: '신발', type: '스니커즈', memo: '스니커즈' + i });
+      specs.push({ id: 'sf', category: '신발', type: '구두', memo: '구두' });
+      await seed(specs);
+      await transaction(['clothes'], 'readwrite', tx => { const st = tx.objectStore('clothes'); const q = st.get('sf'); q.onsuccess = () => st.put({ ...q.result, formality: 3 }); });
+      await refresh();
+      goto('코디 추천'); document.getElementById('occasion').value = '1'; document.getElementById('weather').value = 'normal';
+      const shoes = []; recommend(); shoes.push(...recommendations.map(c => c.slots.shoes));
+      for (let i = 0; i < 9; i++) { recommend(true); shoes.push(...recommendations.map(c => c.slots.shoes)); }
+      const count = {}; for (const s of shoes) count[s] = (count[s] || 0) + 1;
+      const fillShoes = new Set(); for (let i = 0; i < 6; i++) { OF.fillRec(); fillShoes.add(JSON.parse(localStorage.getItem('wardrobe.outfitDraft') || '{}').draft?.shoes); }
+      const first = seed => { REC_SEED = seed; return recommendCombos(1, 'normal').map(c => c.key).join(','); };
+      const days = [20261014, 20261015, 20261016, 20261017, 20261018].map(first), again = first(20261014);
+      REC_SEED = 20261014;
+      return { max: Math.max(...Object.values(count)), total: shoes.length, formal: count.sf || 0, kinds: Object.keys(count).length, fill: fillShoes.size, dayKinds: new Set(days).size, same: again === days[0] };
+    });
+    assert.ok(r.max <= Math.ceil(r.total / 3), JSON.stringify(r)); assert.equal(r.formal, 0); assert.equal(r.kinds, 5);
+    assert.ok(r.fill >= 3, `fill shoes ${r.fill}`); assert.ok(r.dayKinds >= 3, `daily first screens ${r.dayKinds}`); assert.equal(r.same, true);
+  });
+
+  await check('Outfit tab: the builder is folded when empty so saved outfits show on the first screen; it opens when a slot is filled', async page => {
+    const r = await page.evaluate(async () => {
+      await basic();
+      await transaction(['outfits'], 'readwrite', tx => { const st = tx.objectStore('outfits'); for (let i = 0; i < 3; i++) st.put({ id: 'o' + i, name: '코디' + i, slots: { top: 't1', bottom: 'b1', shoes: 's1' }, createdAt: 1000 + i, worn: [] }); });
+      await refresh(); goto('코디'); await sleep(50);
+      const b = document.querySelector('#outfit details.of-builder'), firstY = document.querySelector('#outfit .of-item').getBoundingClientRect().top;
+      const folded = !b.open; OF.choose && (OF.pick('top'), OF.choose('t2')); await sleep(50);
+      return { folded, firstY, opened: document.querySelector('#outfit details.of-builder').open };
+    });
+    assert.equal(r.folded, true); assert.ok(r.firstY < 844, `first saved outfit at ${r.firstY}px`); assert.equal(r.opened, true);
+  });
+
+  await check('Garment sheet shows "outfits with this item" (folded, count) and tapping one goes to that outfit in the outfit list; items without outfits show nothing; merge compares outfit favourite/archive/tags', async page => {
+    const r = await page.evaluate(async () => {
+      await basic();
+      await transaction(['outfits'], 'readwrite', tx => { const st = tx.objectStore('outfits');
+        for (let i = 0; i < 40; i++) st.put({ id: 'x' + i, name: '다른' + i, slots: { top: 't3', bottom: 'b1' }, createdAt: 5000 + i, worn: [] });
+        st.put({ id: 'oa', name: '니트 코디', slots: { top: 't1', bottom: 'b1' }, createdAt: 100, worn: ['2026-10-01'] });
+        st.put({ id: 'ob', name: '니트 출근', slots: { top: 't1', bottom: 'b1', shoes: 's1' }, createdAt: 200, worn: [] }); });
+      await refresh();
+      openEdit('t1'); const d = document.getElementById('ofRelated');
+      const shown = { hidden: d.hidden, open: d.open, text: d.querySelector('summary').textContent, cards: d.querySelectorAll('.of-rel').length };
+      closeEdit(); openEdit('t2'); const none = document.getElementById('ofRelated').hidden; closeEdit();
+      openEdit('t1'); document.querySelectorAll('#ofRelated .of-rel')[0].click(); await sleep(100); // 최근 입은 코디(oa)가 첫 번째
+      const el = document.querySelector('#outfit .of-item[data-of="oa"]');
+      const went = { page: document.querySelector('.page.active').id, edit: document.getElementById('editModal').classList.contains('open'), found: !!el, flash: !!el && el.classList.contains('of-flash') };
+      const base = { name: 'a', slots: { top: 't1' } };
+      return { shown, none, went, fav: sameOutfit(base, { ...base, fav: true }), tags: sameOutfit({ ...base, tags: ['출근'] }, { ...base, tags: [] }), plain: sameOutfit(base, { ...base }) };
+    });
+    assert.deepEqual(r.shown, { hidden: false, open: false, text: '이 옷이 든 코디 2개', cards: 2 });
+    assert.equal(r.none, true);
+    assert.deepEqual(r.went, { page: 'outfit', edit: false, found: true, flash: true });
+    assert.deepEqual([r.fav, r.tags, r.plain], [false, false, true]);
+  });
+
+  await check('Service worker treats only ./ and ./index.html as the app page: a sub-path page offline is not served the closet', async (page, context) => {
+    await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+    await page.reload(); await page.waitForFunction(() => !!navigator.serviceWorker.controller && window.OF);
+    const o = `http://127.0.0.1:${server.address().port}`;
+    await context.setOffline(true);
+    await page.goto(`${o}/next/`).catch(() => {}); const sub = await page.evaluate(() => document.body ? document.body.innerText : '').catch(() => '');
+    await page.goto(`${o}/`); await page.waitForFunction(() => window.OF); const root = await page.title();
+    await context.setOffline(false);
+    assert.ok(!/옷 \d+벌/.test(sub), sub.slice(0, 80)); assert.equal(root, '내 옷장');
+  }, { sw: true });
+
+  await check('Shoes, bags and outers follow the combo, not only the purpose: no dress shoes with shorts at work or with a casual date combo; one formal bag does not fill all three work combos; cold work days pick the winter coat first', async page => {
+    const r = await page.evaluate(async () => {
+      const put = async (spec) => { await seed(spec.map(([id, category, type, season]) => ({ id, category, type, memo: type, season }))); await transaction(['clothes'], 'readwrite', tx => { const st = tx.objectStore('clothes'); for (const [id, , , , f] of spec) { const q = st.get(id); q.onsuccess = () => st.put({ ...q.result, formality: f, color: '회색' }); } }); await refresh(); };
+      await put([['tf', '상의', '셔츠', '사계절', 3], ['tc1', '상의', '티셔츠', '여름', 1], ['tc2', '상의', '티셔츠', '여름', 1], ['bf', '하의', '슬랙스', '사계절', 3], ['bc1', '하의', '쇼츠', '여름', 1], ['bc2', '하의', '쇼츠', '여름', 1],
+        ['sf', '신발', '구두', '사계절', 3], ['sc1', '신발', '스니커즈', '사계절', 1], ['sc2', '신발', '스니커즈', '사계절', 1], ['g1', '가방', '브리프케이스', '사계절', 3], ['g2', '가방', '토트', '사계절', 1], ['g3', '가방', '토트', '사계절', 1],
+        ['oc', '아우터', '코트', '겨울', 3], ['ob', '아우터', '블레이저', '봄/가을', 3], ['op', '아우터', '패딩', '겨울', 1]]);
+      const kind = id => clothes.find(c => c.id === id)?.type;
+      const all = (t, w, n) => { const seen = new Set(), av = { tops: new Set(), bottoms: new Set(), items: new Set() }, out = []; for (let i = 0; i < n; i++) { const cs = recommendCombos(t, w, seen, 3, av); for (const c of cs) { seen.add(c.key); av.tops.add(c.slots.top); av.bottoms.add(c.slots.bottom); for (const k of ['outer', 'shoes', 'bag']) if (c.slots[k]) av.items.add(c.slots[k]); } out.push(cs); } return out; };
+      const work = all(3, 'hot', 3).flat(), shortsWithDress = work.filter(c => kind(c.slots.bottom) === '쇼츠' && kind(c.slots.shoes) === '구두').length;
+      const date = all(2, 'normal', 3).flat(), casualWithDress = date.filter(c => kind(c.slots.bottom) === '쇼츠' && kind(c.slots.shoes) === '구두').length;
+      const firstBags = new Set(recommendCombos(3, 'normal').map(c => c.slots.bag)).size, coldOuter = recommendCombos(3, 'cold')[0].slots.outer;
+      return { shortsWithDress, casualWithDress, firstBags, coldOuter, shorts: work.filter(c => kind(c.slots.bottom) === '쇼츠').length };
+    });
+    assert.equal(r.shortsWithDress, 0, JSON.stringify(r)); assert.equal(r.casualWithDress, 0); assert.ok(r.firstBags >= 2, `first screen bags ${r.firstBags}`); assert.equal(r.coldOuter, 'oc');
+  });
+
+  await check('Builder stays folded after saving and reopening the app; a tap on its title is remembered; loading an outfit opens it even when its items were deleted; outfit tags compare in any order', async page => {
+    await page.evaluate(async () => { await basic(); goto('코디'); OF.pick('top'); OF.choose('t1'); OF.pick('bottom'); OF.choose('b1'); OF.save(); await sleep(400); });
+    await page.reload(); await page.waitForFunction(() => window.OF && /옷 \d+벌/.test(document.getElementById('summary').textContent));
+    const r = await page.evaluate(async () => {
+      [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === '코디').click(); await new Promise(r => setTimeout(r, 100));
+      const b = () => document.querySelector('#outfit details.of-builder');
+      const afterReload = { open: b().open, firstY: document.querySelector('#outfit .of-item').getBoundingClientRect().top };
+      b().querySelector('summary').click(); await new Promise(r => setTimeout(r, 50)); const pref = localStorage.getItem('wardrobe.builderOpen');
+      b().querySelector('summary').click(); await new Promise(r => setTimeout(r, 50));
+      await transaction(['outfits'], 'readwrite', tx => tx.objectStore('outfits').put({ id: 'empty1', name: '빈 코디', slots: { top: 'gone' }, createdAt: 1, worn: [] })); await refresh();
+      OF.load('empty1'); await new Promise(r => setTimeout(r, 50));
+      const base = { name: 'a', slots: {} };
+      return { afterReload, pref, loadedOpen: b().open, tags: sameOutfit({ ...base, tags: ['출근', '데이트'] }, { ...base, tags: ['데이트', '출근'] }) };
+    });
+    assert.equal(r.afterReload.open, false); assert.ok(r.afterReload.firstY < 844, `first outfit at ${r.afterReload.firstY}`);
+    assert.equal(r.pref, '1'); assert.equal(r.loadedOpen, true); assert.equal(r.tags, true);
   });
 
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {
