@@ -28,6 +28,7 @@ async function fresh(opts = {}) {
   await page.route('https://**/*', route => route.abort());
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(() => /옷 \d+벌/.test(document.getElementById('summary').textContent) && window.OF);
+  await page.evaluate(s => { REC_SEED = s; }, Number(process.env.WARDROBE_REC_SEED || 20261014)); // 추천 흔들기는 켠 채 날짜만 고정
   await page.evaluate(() => {
     window.alerts = []; window.alert = t => alerts.push(String(t)); window.confirm = () => true; window.promptAnswer = null; window.prompt = () => window.promptAnswer;
     window.sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -84,7 +85,7 @@ async function check(name, fn) {
       OF.pick('top'); OF.choose('t2'); OF.save(); await sleep(300);
       const rows = await outfitsDB();
       OF.saveNew(); await sleep(300);
-      return { afterTwo, overwritten: rows.length === 1 && rows[0].slots.top === 't2', total: (await outfitsDB()).length, btn: document.getElementById('outfit').innerText.includes('덮어쓰기') };
+      return { afterTwo, overwritten: rows.length === 1 && rows[0].slots.top === 't2', total: (await outfitsDB()).length, btn: document.getElementById('outfit').textContent.includes('덮어쓰기') }; // v4.8.6: 저장하면 만들기 칸이 접혀 버튼은 접힌 칸 안에 있다
     });
     assert.deepEqual(r, { afterTwo: 1, overwritten: true, total: 2, btn: true });
   });

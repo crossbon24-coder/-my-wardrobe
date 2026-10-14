@@ -7,8 +7,10 @@
 const V = new URL(self.location).searchParams.get('v') || '0'; // 앱 버전(index.html이 sw.js?v=버전으로 등록). 버전이 바뀌면 서비스워커와 사본도 새로 만든다
 const CACHE = 'wardrobe-shell-' + V;
 const SHELL = ['./', `./outfits.js?v=${V}`, `./wardrobe-import.js?v=${V}`, './shortcut-help.html', './product-shortcut.js', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
-const isPage = u => u.pathname.endsWith('/') || u.pathname.endsWith('/index.html');
-const keyOf = url => { const u = new URL(url), v = u.searchParams.get('v'); return u.origin + (isPage(u) ? new URL('./', self.location).pathname : u.pathname) + (v && !isPage(u) && !u.pathname.endsWith('.html') ? '?v=' + v : ''); };
+// 앱 화면은 이 서비스워커 자리의 './'와 './index.html'뿐이다(예전에는 '/'로 끝나는 모든 경로를 앱 화면으로 보아, 하위 경로 화면이 앱 사본 자리를 덮을 수 있었다)
+const ROOT = new URL('./', self.location).pathname;
+const isPage = u => u.pathname === ROOT || u.pathname === ROOT + 'index.html';
+const keyOf = url => { const u = new URL(url), v = u.searchParams.get('v'); return u.origin + (isPage(u) ? ROOT : u.pathname) + (v && !isPage(u) && !u.pathname.endsWith('.html') ? '?v=' + v : ''); };
 const offlinePage = () => new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>오프라인</title><p style="font:16px -apple-system,sans-serif;padding:24px;line-height:1.6">오프라인이라 이 페이지를 열 수 없습니다. 인터넷에 연결된 뒤 다시 시도해 주세요.<br><a href="./">← 옷장으로 돌아가기</a></p>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 
 self.addEventListener('install', e => {
