@@ -5,12 +5,12 @@
 <details><summary>처음 한 번: 단축어 설정</summary><p class="small"><a href="./shortcut-help.html" target="_blank" rel="noopener" id="shortcutHelpLink">단축어 설정 안내 열기</a> · 설정 후에는 Safari 공유 메뉴에서 실행합니다. 홈 화면 옷장을 쓰면 복사 후 평소 사용하는 옷장 앱을 직접 여세요.</p><button class="secondary" onclick="copyShortcutScript()">단축어 코드 복사</button><p id="shortcutStatus" class="small" role="status"></p><textarea id="shortcutCode" aria-label="단축어 코드" readonly hidden></textarea></details>
 <textarea id="productPayload" aria-label="가져올 상품 정보" placeholder="붙여넣기 버튼이 안 되면 여기에 길게 눌러 붙여 넣으세요"></textarea>
 <div class="row"><button id="productPreviewBtn" onclick="previewProduct()">상품 미리보기</button><button class="secondary" onclick="productFile.click()">상품 파일 선택</button></div><input id="productFile" type="file" accept=".json,application/json,.txt,text/plain" hidden>
-<p id="productStatus" class="small" role="status"></p><p id="productDiag" class="small muted">가져오기 기능 파일을 불러오지 못했습니다. 강제 새로고침 후 다시 열어 주세요.</p><div id="productReview" hidden><img id="productImage" class="product-preview" alt="가져온 상품 사진" hidden><label>사진 선택·교체<input id="productPhoto" type="file" accept="image/*"></label><div id="productFields"></div><button id="productQueueBtn" onclick="queueProduct()">등록 목록에 추가</button></div></details><div class="card"><h2>백업 · 업데이트</h2><div class="box" id="backupBox"><b>옷장 백업 · 복원</b><p class="small">사진과 옷 정보를 JSON 파일로 보관합니다. <b>합치기</b>는 지금 옷장에 백업의 새 옷·코디를 더하고, 둘 다 있으면 더 최근에 바뀐 쪽을 남기며 착용 기록은 합칩니다(폰과 PC를 오갈 때). <b>교체</b>는 지금 옷장을 백업 내용으로 바꿉니다.</p><div class="row"><button class="secondary" onclick="exportBackup()">백업 만들기</button><button class="secondary" onclick="pickMerge()">백업 합치기</button></div><div class="row" style="margin-top:8px"><button class="secondary" onclick="restorePicker.click()">백업으로 교체</button></div><input id="mergePicker" type="file" accept="application/json,.json" hidden onchange="mergeBackup(this.files[0])"><input id="restorePicker" type="file" accept="application/json,.json" hidden onchange="restoreBackup(this.files[0])"><p id="backupStatus" class="small" role="status"></p><div id="backupShare" hidden></div><p id="backupInfo" class="small"></p></div><div class="box"><b>앱 업데이트</b><p class="small">현재 버전 <b>v4.10</b></p><div class="row"><button class="secondary" onclick="checkUpdate(true)">최신 버전 확인</button><button class="secondary" onclick="forceReload()">강제 새로고침</button></div><details id="diagBox" ontoggle="if(this.open)renderDiag()"><summary class="small">진단 정보</summary><p id="diagText" class="small" style="white-space:pre-line"></p></details></div><div class="version">Wardrobe v4.10</div></div></div></section>
+<p id="productStatus" class="small" role="status"></p><p id="productDiag" class="small muted">가져오기 기능 파일을 불러오지 못했습니다. 강제 새로고침 후 다시 열어 주세요.</p><div id="productReview" hidden><img id="productImage" class="product-preview" alt="가져온 상품 사진" hidden><label>사진 선택·교체<input id="productPhoto" type="file" accept="image/*"></label><div id="productFields"></div><button id="productQueueBtn" onclick="queueProduct()">등록 목록에 추가</button></div></details><div class="card"><h2>백업 · 업데이트</h2><div class="box" id="backupBox"><b>옷장 백업 · 복원</b><p class="small">사진과 옷 정보를 JSON 파일로 보관합니다. <b>합치기</b>는 지금 옷장에 백업의 새 옷·코디를 더하고, 둘 다 있으면 더 최근에 바뀐 쪽을 남기며 착용 기록은 합칩니다(폰과 PC를 오갈 때). <b>교체</b>는 지금 옷장을 백업 내용으로 바꿉니다.</p><div class="row"><button class="secondary" onclick="exportBackup()">백업 만들기</button><button class="secondary" onclick="pickMerge()">백업 합치기</button></div><div class="row" style="margin-top:8px"><button class="secondary" onclick="restorePicker.click()">백업으로 교체</button></div><input id="mergePicker" type="file" accept="application/json,.json" hidden onchange="mergeBackup(this.files[0])"><input id="restorePicker" type="file" accept="application/json,.json" hidden onchange="restoreBackup(this.files[0])"><p id="backupStatus" class="small" role="status"></p><div id="backupShare" hidden></div><p id="backupInfo" class="small"></p></div><div class="box"><b>앱 업데이트</b><p class="small">현재 버전 <b>v4.11</b></p><div class="row"><button class="secondary" onclick="checkUpdate(true)">최신 버전 확인</button><button class="secondary" onclick="forceReload()">강제 새로고침</button></div><details id="diagBox" ontoggle="if(this.open)renderDiag()"><summary class="small">진단 정보</summary><p id="diagText" class="small" style="white-space:pre-line"></p></details></div><div class="version">Wardrobe v4.11</div></div></div></section>
 <section id="outfit" class="page"></section>
 <section id="recommend" class="page"><div class="card"><h2>코디 추천</h2><div class="rec-controls"><select id="occasion" aria-label="외출 목적"><option value="1">주말 / 편한 외출</option><option value="2" selected>데이트</option><option value="3">출근·격식 있는 자리</option></select><select id="weather" aria-label="날씨"><option value="normal" selected>보통 날씨</option><option value="hot">더운 날</option><option value="cold">추운 날</option></select></div><button onclick="recommend()">내 옷으로 추천</button><div id="result"></div></div></section>
 </main><nav><button class="active" onclick="showPage('closet',this)">옷장</button><button onclick="showPage('outfit',this)">코디</button><button onclick="showPage('add',this)">옷 등록</button><button onclick="showPage('recommend',this)">코디 추천</button></nav><div id="editModal" class="modal" onclick="if(event.target===this)requestCloseEdit()"><div class="sheet"><h2>옷 정보 수정</h2><img id="editImg" alt="옷 사진"><p id="editPartial" class="small warn" hidden>화면 캡처 때 일부가 가려진 사진입니다. '사진 바꾸기'로 다시 찍어 넣으세요.</p><div class="row"><button type="button" class="secondary" id="editPhotoBtn" onclick="$('editPhotoInput').click()">사진 바꾸기</button><button type="button" class="ghost" id="editUntrimBtn" hidden onclick="untrimEditPhoto()">자르지 않은 사진으로</button></div><input id="editPhotoInput" type="file" accept="image/*" hidden onchange="chooseEditPhoto(this.files[0])"><select id="editCategory"></select><select id="editType"></select><div class="row"><select id="editColor"></select><select id="editSeason"></select></div><select id="editFormality"></select><input id="editMemo" placeholder="메모"><details><summary>상품·구매 옵션</summary><label>상품명<input id="detailName" maxlength="500"></label><label>브랜드<input id="detailBrand" maxlength="500"></label><label>상품 주소<input id="detailURL" type="url"></label><label>소재·혼용률<input id="detailMaterial" maxlength="500"></label><div class="row"><label>구매 색상<input id="detailColor" maxlength="500"></label><label>구매 사이즈<input id="detailSize" maxlength="500"></label></div><p id="detailDescription" class="product-description"></p></details>
-<details><summary>세탁 라벨·관리</summary><p class="small">라벨 사진과 제조사 안내를 함께 보관하세요. iPhone 사진 앱에서 라이브 텍스트로 문장을 복사해 아래에 붙여 넣을 수 있습니다. 세탁 기호는 원본을 보고 확인해주세요.</p><label>세탁 라벨 사진<input id="carePhoto" type="file" accept="image/*"></label><img id="careImage" class="care-preview" alt="세탁 라벨 · 누르면 확대" onclick="this.classList.toggle('expanded')" hidden><button id="removeCarePhoto" class="ghost" onclick="removeCarePhoto()" hidden>라벨 사진 제외</button><p id="careStatus" class="small" role="status"></p><label>라벨·제조사 세탁 안내<textarea id="careInstructions" maxlength="8000" placeholder="라벨에서 읽은 안내를 확인 후 입력"></textarea></label><label>내 관리 메모<textarea id="careNotes" maxlength="4000"></textarea></label><label>마지막 세탁일<input id="careLastWashed" type="date"></label></details><div class="actions"><button id="editSaveBtn" onclick="saveEdit()">저장</button><button class="secondary" onclick="closeEdit()">취소</button></div><div class="tidy"><p class="small">옷 정리: 보관하면 옷장·추천에서 숨기고 보관함에서 되살릴 수 있습니다. 삭제는 되돌릴 수 없습니다.</p><div class="actions"><button type="button" class="secondary" id="archiveBtn" onclick="toggleArchive()">보관</button><button type="button" class="secondary danger" onclick="deleteGarment()">삭제</button></div></div></div></div><script src="./wardrobe-import.js?v=4.10"></script><script src="./recommend.js?v=4.10"></script><script>
-const APP_VERSION='4.10',DB='wardrobeDB',VER=1,C=['상의','하의','아우터','신발','가방','액세서리'],COL=['검정','흰색','아이보리/크림','네이비','회색','베이지','브라운','카키/올리브','블루','그린','와인/버건디','기타'],SEA=['사계절','봄/가을','여름','겨울'],T={상의:['티셔츠','셔츠','니트','맨투맨','후드','폴로','기타'],하의:['슬랙스','데님','치노','카고','쇼츠','기타'],아우터:['재킷','블레이저','코트','블루종','패딩','가디건','기타'],신발:['스니커즈','로퍼','구두','부츠','샌들','기타'],가방:['백팩','토트','크로스백','브리프케이스','기타'],액세서리:['벨트','모자','기타']},FOR=[['1','캐주얼'],['3','포멀']];
+<details><summary>세탁 라벨·관리</summary><p class="small">라벨 사진과 제조사 안내를 함께 보관하세요. iPhone 사진 앱에서 라이브 텍스트로 문장을 복사해 아래에 붙여 넣을 수 있습니다. 세탁 기호는 원본을 보고 확인해주세요.</p><label>세탁 라벨 사진<input id="carePhoto" type="file" accept="image/*"></label><img id="careImage" class="care-preview" alt="세탁 라벨 · 누르면 확대" onclick="this.classList.toggle('expanded')" hidden><button id="removeCarePhoto" class="ghost" onclick="removeCarePhoto()" hidden>라벨 사진 제외</button><p id="careStatus" class="small" role="status"></p><label>라벨·제조사 세탁 안내<textarea id="careInstructions" maxlength="8000" placeholder="라벨에서 읽은 안내를 확인 후 입력"></textarea></label><label>내 관리 메모<textarea id="careNotes" maxlength="4000"></textarea></label><label>마지막 세탁일<input id="careLastWashed" type="date"></label></details><div class="actions"><button id="editSaveBtn" onclick="saveEdit()">저장</button><button class="secondary" onclick="closeEdit()">취소</button></div><div class="tidy"><p class="small">옷 정리: 보관하면 옷장·추천에서 숨기고 보관함에서 되살릴 수 있습니다. 삭제는 되돌릴 수 없습니다.</p><div class="actions"><button type="button" class="secondary" id="archiveBtn" onclick="toggleArchive()">보관</button><button type="button" class="secondary danger" onclick="deleteGarment()">삭제</button></div></div></div></div><script src="./wardrobe-import.js?v=4.11"></script><script src="./recommend.js?v=4.11"></script><script>
+const APP_VERSION='4.11',DB='wardrobeDB',VER=1,C=['상의','하의','아우터','신발','가방','액세서리'],COL=['검정','흰색','아이보리/크림','네이비','회색','베이지','브라운','카키/올리브','블루','그린','와인/버건디','기타'],SEA=['사계절','봄/가을','여름','겨울'],T={상의:['티셔츠','셔츠','니트','맨투맨','후드','폴로','기타'],하의:['슬랙스','데님','치노','카고','쇼츠','기타'],아우터:['재킷','블레이저','코트','블루종','패딩','가디건','기타'],신발:['스니커즈','로퍼','구두','부츠','샌들','기타'],가방:['백팩','토트','크로스백','브리프케이스','기타'],액세서리:['벨트','모자','기타']},FOR=[['1','캐주얼'],['3','포멀']];
 // 격식은 캐주얼·포멀 두 단계(v4.7). 예전 값은 그대로 두고 읽을 때 1·2(와 빈 값)는 캐주얼, 3·4는 포멀로 본다. 새로 고르면 1 또는 3을 저장한다
 const formalityLevel=v=>(+v||1)>=3?3:1;
 // 색 선택칸 이름: 저장 값은 그대로 두고 헷갈리는 색만 이름을 넓힌다(삭스블루·스카이블루·라이트블루·연청은 블루)
@@ -29,7 +29,7 @@ function toast(msg,actionLabel,onAction){
   let t=$('appToast');if(!t){t=document.createElement('div');t.id='appToast';t.setAttribute('role','status');document.body.appendChild(t)}
   t.replaceChildren();const m=document.createElement('span');m.textContent=msg;t.appendChild(m);
   if(actionLabel&&onAction){const b=document.createElement('button');b.type='button';b.textContent=actionLabel;b.onclick=()=>{t.classList.remove('show');onAction()};t.appendChild(b)}
-  t.style.pointerEvents=actionLabel?'auto':'none';const addOpen=$('add')&&$('add').classList.contains('active')&&typeof batch!=='undefined'&&batch.length;t.style.bottom=addOpen?'calc(128px + env(safe-area-inset-bottom))':'';
+  t.style.pointerEvents=actionLabel?'auto':'none';const addOpen=$('add')&&$('add').classList.contains('active')&&typeof batch!=='undefined'&&batch.length,ofBar=!!document.querySelector('#outfit.active .of-save');t.style.bottom=addOpen||ofBar?'calc(128px + env(safe-area-inset-bottom))':''; // 등록 화면 아래 버튼·코디 만들기 저장 줄 위로
   t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),actionLabel?6000:2600);
 }
 const TOMB_KEY='wardrobe.tombstones';
@@ -99,13 +99,15 @@ const localDate=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).pad
 const isToday=ms=>!!ms&&localDate(new Date(ms))===localDate();
 function renderCounts(){
   const act=clothes.filter(c=>!c.archived).length,arc=clothes.length-act;
-  $('total').textContent=act;$('worn').textContent=clothes.reduce((a,c)=>a+(c.wearCount||0),0);$('saved').textContent=outfits.length;
-  $('summary').textContent=`옷 ${act}벌${arc?` · 보관 ${arc}벌`:''} · 저장 코디 ${outfits.length}개`;
+  const oAct=outfits.filter(o=>o&&!o.archived).length,oArc=outfits.length-oAct; // 보관한 코디(v4.11)는 옷처럼 따로 센다
+  $('total').textContent=act;$('worn').textContent=clothes.reduce((a,c)=>a+(c.wearCount||0),0);$('saved').textContent=oAct;
+  $('summary').textContent=`옷 ${act}벌${arc?` · 보관 ${arc}벌`:''} · 저장 코디 ${oAct}개${oArc?` · 보관 코디 ${oArc}개`:''}`;
 }
 let renderedDate='';
 // 옷마다 그 옷이 든 저장 코디 수(옷장 카드·고르기 창 표시용). 코디 하나에 같은 옷이 두 칸에 있어도 한 번만 센다
 const OUTFIT_SLOTS=['outer','top','bottom','shoes','bag','acc'];
-function outfitCountMap(){const m=new Map();for(const o of outfits){const sl=o&&o.slots||{},s=new Set(OUTFIT_SLOTS.map(k=>sl[k]).filter(v=>v!==null&&v!==undefined&&v!==''));for(const id of s)m.set(id,(m.get(id)||0)+1)}return m}
+// 보관한 코디(v4.11)는 세지 않는다(목록에서 숨긴 코디라)
+function outfitCountMap(){const m=new Map();for(const o of outfits){if(!o||o.archived)continue;const sl=o.slots||{},s=new Set(OUTFIT_SLOTS.map(k=>sl[k]).filter(v=>v!==null&&v!==undefined&&v!==''));for(const id of s)m.set(id,(m.get(id)||0)+1)}return m}
 function render(){
   renderedDate=localDate();renderCounts();
   const arc=clothes.some(c=>c.archived);if(filter==='보관함'&&!arc)filter='전체';
@@ -638,7 +640,9 @@ async function prepareRestore(o,onProgress){
     if(x.name!==undefined&&typeof x.name!=='string')bad('이름');
     if(x.slots!==undefined&&(!x.slots||typeof x.slots!=='object'||Array.isArray(x.slots)||Object.values(x.slots).some(v=>v!==null&&!['string','number'].includes(typeof v))))bad('칸');
     if(x.worn!==undefined&&(!Array.isArray(x.worn)||x.worn.some(d=>typeof d!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(d))))bad('착용 날짜');
-    for(const k of ['createdAt','updatedAt'])if(x[k]!==undefined&&x[k]!==null&&!Number.isFinite(x[k]))bad(k);});
+    for(const k of ['createdAt','updatedAt','favAt','archivedAt'])if(x[k]!==undefined&&x[k]!==null&&!Number.isFinite(x[k]))bad(k);
+    for(const k of ['fav','archived'])if(x[k]!==undefined&&x[k]!==null&&typeof x[k]!=='boolean')bad(k==='fav'?'즐겨찾기':'보관');
+    if(x.tags!==undefined&&x.tags!==null&&(!Array.isArray(x.tags)||x.tags.some(t=>typeof t!=='string')))bad('태그');});
   const tb=o.tombstones&&typeof o.tombstones==='object'?o.tombstones:{};
   return {clothes:cc,outfits,tombstones:combineTombs({c:{},o:{},w:{}},tb)};
 }
@@ -661,14 +665,31 @@ const CONTENT_KEYS=['category','type','color','season','formality','memo','archi
 // 상품·세탁 정보는 빈 칸을 뺀 뒤 비교한다(아무것도 안 고치고 저장해도 빈 묶음이 붙기 때문)
 function cleanDetails(v){if(v&&typeof v==='object'&&!Array.isArray(v)){const o={};for(const [k,x] of Object.entries(v)){const c=cleanDetails(x);if(c!==undefined)o[k]=c}return Object.keys(o).length?o:undefined}return v===''||v===null||v===undefined?undefined:v}
 function sameContent(a,b){return CONTENT_KEYS.every(k=>k==='formality'?formalityLevel(a[k])===formalityLevel(b[k]):(a[k]??null)===(b[k]??null))&&JSON.stringify(cleanDetails(a.wardrobeDetails)||{})===JSON.stringify(cleanDetails(b.wardrobeDetails)||{})&&(a.image?.size??0)===(b.image?.size??0)&&(a.image?.type??'')===(b.image?.type??'')}
-// 코디 비교: 이름·칸에 더해 즐겨찾기(fav)·보관(archived)·목적 태그(tags)도 본다(이후 버전에서 쓸 선택 필드. 이 값만 바꾼 코디도 합치기로 넘어가게)
+// 코디 비교: 이름·칸에 더해 즐겨찾기(fav)·보관(archived)·목적 태그(tags)도 본다(v4.8.6~. 이 값만 바꾼 코디도 합치기로 넘어가게)
 const sameOutfit=(a,b)=>(a.name??'')===(b.name??'')&&JSON.stringify(a.slots||{})===JSON.stringify(b.slots||{})&&!!a.fav===!!b.fav&&!!a.archived===!!b.archived&&JSON.stringify([...(a.tags||[])].sort())===JSON.stringify([...(b.tags||[])].sort());
+// v4.11: 이름·칸·태그는 updatedAt으로 고르고, 즐겨찾기·보관은 칸마다 따로 찍은 시각(favAt·archivedAt)으로 고른다.
+// 별표·보관을 누를 때 updatedAt을 찍으면 다른 기기에서 먼저 고친 이름·칸이 별표 하나에 밀려 사라졌다(반박 검토 확인)
+const sameBody=(a,b)=>(a.name??'')===(b.name??'')&&JSON.stringify(a.slots||{})===JSON.stringify(b.slots||{})&&JSON.stringify([...(a.tags||[])].sort())===JSON.stringify([...(b.tags||[])].sort());
+const outfitStamp=o=>Math.max(Number(o.updatedAt)||0,Number(o.favAt)||0,Number(o.archivedAt)||0); // 지운 표시보다 나중에 고쳤는지 볼 때
+function pickFlags(base,loc,inc,who){
+  const other=base===inc?loc:inc;let r=base;
+  for(const k of ['fav','archived']){
+    const at=k+'At',la=Number(loc[at])||0,ia=Number(inc[at])||0;let v,t=0;
+    if(la||ia){const w=ia>la?inc:loc,o=w===inc?loc:inc;v=w[k]!==undefined?w[k]:o[k];t=Math.max(la,ia)} // 더 나중에 누른 쪽
+    else{const w=who==='inc'?inc:who==='loc'?loc:base,o=w===inc?loc:inc;v=w[k]!==undefined?w[k]:o[k]} // 시각이 없으면 더 최근에 고친 기록의 값, 그 칸이 없으면 다른 쪽 값(없는 칸은 '모름')
+    if(v===undefined)continue;
+    if(!!v!==!!r[k])r={...r,[k]:!!v,...(t?{[at]:t}:{})};
+    else if(t&&(Number(r[at])||0)!==t)r={...r,[k]:!!v,[at]:t}; // 값은 같고 더 나중 시각만 있으면 시각도 남긴다(합치는 순서에 따라 옛 시각이 이기지 않게). 이것만 바뀐 코디는 조용히 쓴다(quietO)
+  }
+  if(r.tags===undefined&&Array.isArray(other.tags)&&other.tags.length)r={...r,tags:other.tags};
+  return r;
+}
 const newerOf=(loc,inc)=>(inc.updatedAt||0)>(loc.updatedAt||0)?'inc':(loc.updatedAt||0)>(inc.updatedAt||0)?'loc':'tie';
 // 합치기 계획. 규칙: 없는 id는 더한다(지운 표시가 더 최근이면 더하지 않음). 둘 다 있으면 내용은 수정 시각이 더 최근인 쪽, 시각이 같거나 없고 내용이 다르면 '알 수 없음'(prefer에 든 id만 백업 쪽).
 // 착용 횟수·마지막 착용은 큰 값, 코디 착용 날짜는 합집합에서 지운 날짜를 뺀다. 다른 기기에서 지운 옷·코디는 여기서도 지운다(지운 뒤 여기서 고친 것은 남김).
 function planMerge(local,incoming,tombs,prefer=new Set()){
-  const L=new Map(local.clothes.map(c=>[c.id,c])),LO=new Map(local.outfits.map(o=>[o.id,o]));
-  const p={putC:[],delC:[],putO:new Map(),delO:[],added:[],took:[],stats:[],conflicts:[],skipped:0,addO:[],updO:[]};
+  const L=new Map(local.clothes.map(c=>[c.id,c])),LO=new Map(local.outfits.map(o=>[o.id,o])),IC=new Map(incoming.clothes.map(c=>[c.id,c])),IO=new Map(incoming.outfits.map(o=>[o.id,o]));
+  const p={putC:[],delC:[],putO:new Map(),quietO:new Map(),delO:[],added:[],took:[],stats:[],conflicts:[],skipped:0,addO:[],updO:[],tookO:[],arcO:[],unarcO:[],bodyO:new Set()};
   for(const inc of incoming.clothes){
     const loc=L.get(inc.id),dead=tombs.c[String(inc.id)];
     if(!loc){if(dead>=(inc.updatedAt||0)){p.skipped++;continue}p.putC.push(inc);p.added.push(inc);continue}
@@ -677,24 +698,29 @@ function planMerge(local,incoming,tombs,prefer=new Set()){
     if(!same&&(who==='inc'||(who==='tie'&&prefer.has(inc.id)))){p.putC.push({...inc,wearCount,lastWorn});p.took.push(inc);continue}
     if(wearCount!==(loc.wearCount||0)||lastWorn!==(loc.lastWorn??null)){p.putC.push({...loc,wearCount,lastWorn});p.stats.push(loc)}
   }
-  for(const loc of local.clothes){const dead=tombs.c[String(loc.id)];if(dead>(loc.updatedAt||0))p.delC.push(loc)}
+  for(const loc of local.clothes){const dead=tombs.c[String(loc.id)],inc=IC.get(loc.id);if(dead>Math.max(loc.updatedAt||0,inc&&inc.updatedAt||0))p.delC.push(loc)} // 지운 표시는 양쪽 중 더 최근 버전과 비교
   const gone=new Set(p.delC.map(c=>c.id)),wornOk=(id,d)=>!(String(id)+'|'+d in tombs.w);
   const fixSlots=o=>{let hit=false;const slots={...(o.slots||{})};for(const k in slots)if(gone.has(slots[k])){slots[k]=null;hit=true}return hit?{...o,slots}:o};
   for(const inc of incoming.outfits){
     const loc=LO.get(inc.id),dead=tombs.o[String(inc.id)];
-    if(!loc){if(dead>=(inc.updatedAt||0)){p.skipped++;continue}const o={...inc,worn:validDates(inc.worn).filter(d=>wornOk(inc.id,d))};p.putO.set(o.id,o);p.addO.push(o);continue}
-    const worn=[...new Set([...validDates(loc.worn),...validDates(inc.worn)])].filter(d=>wornOk(loc.id,d)).sort(),who=newerOf(loc,inc),same=sameOutfit(loc,inc);
+    if(!loc){if(dead>=outfitStamp(inc)){p.skipped++;continue}const o={...inc,worn:validDates(inc.worn).filter(d=>wornOk(inc.id,d))};p.putO.set(o.id,o);p.addO.push(o);continue}
+    const worn=[...new Set([...validDates(loc.worn),...validDates(inc.worn)])].filter(d=>wornOk(loc.id,d)).sort(),who=newerOf(loc,inc),same=sameBody(loc,inc);
     if(!same&&who==='tie')p.conflicts.push(inc);
-    const base=!same&&(who==='inc'||(who==='tie'&&prefer.has(inc.id)))?inc:loc;
-    if(base===inc||JSON.stringify(worn)!==JSON.stringify(validDates(loc.worn))){p.putO.set(loc.id,{...base,worn});p.updO.push(loc)}
+    // 이름·칸은 더 최근에 고친 쪽, 즐겨찾기·보관은 더 나중에 누른 쪽(예: PC에서 이름을 바꾸고 폰에서 별표 → 이름은 PC, 별표는 폰)
+    const base=pickFlags(!same&&(who==='inc'||(who==='tie'&&prefer.has(inc.id)))?inc:loc,loc,inc,who),wornNew=JSON.stringify(worn)!==JSON.stringify(validDates(loc.worn));
+    if(base!==loc||wornNew){
+      if(!wornNew&&sameOutfit(base,loc))p.quietO.set(loc.id,{...base,worn}); // 별표·보관 시각만 바뀜: 묻지 않고 쓴다(바뀐 것으로 세지 않음)
+      else{p.putO.set(loc.id,{...base,worn});if(!sameOutfit(base,loc)){p.tookO.push(loc);if(!!base.archived!==!!loc.archived)(base.archived?p.arcO:p.unarcO).push(loc)}else p.updO.push(loc)}}
   }
   for(const loc of local.outfits){
-    if(tombs.o[String(loc.id)]>(loc.updatedAt||0)){p.delO.push(loc);p.putO.delete(loc.id);continue}
-    const cur=p.putO.get(loc.id)||loc,worn=validDates(cur.worn).filter(d=>wornOk(loc.id,d));
-    if(worn.length!==validDates(cur.worn).length)p.putO.set(loc.id,{...cur,worn});
+    const inc=IO.get(loc.id);if(tombs.o[String(loc.id)]>Math.max(outfitStamp(loc),inc?outfitStamp(inc):0)){p.delO.push(loc);p.putO.delete(loc.id);p.quietO.delete(loc.id);continue}
+    const cur=p.putO.get(loc.id)||p.quietO.get(loc.id)||loc,worn=validDates(cur.worn).filter(d=>wornOk(loc.id,d));
+    if(worn.length!==validDates(cur.worn).length){p.putO.set(loc.id,{...cur,worn});p.quietO.delete(loc.id)}
   }
   for(const [id,o] of p.putO)p.putO.set(id,fixSlots(o));
-  if(gone.size)for(const loc of local.outfits)if(!p.putO.has(loc.id)&&!p.delO.includes(loc)){const f=fixSlots(loc);if(f!==loc)p.putO.set(loc.id,f)}
+  for(const [id,o] of p.quietO){const f=fixSlots(o);if(f!==o){p.putO.set(id,f);p.quietO.delete(id)}} // 지운 옷 칸을 비우면 보이는 변경
+  if(gone.size)for(const loc of local.outfits)if(!p.putO.has(loc.id)&&!p.quietO.has(loc.id)&&!p.delO.includes(loc)){const f=fixSlots(loc);if(f!==loc)p.putO.set(loc.id,f)}
+  for(const [id,o] of p.putO){const l=LO.get(id);if(l&&!sameBody(o,l))p.bodyO.add(id)} // 이름·칸이 바뀐 코디(고치던 초안을 맞출 대상)
   return p;
 }
 const nameOf=x=>x.name||x.memo||x.type||x.category||'이름 없음';
@@ -713,26 +739,31 @@ async function mergeBackup(f){
       if(confirm(`${label}\n어느 쪽이 최근에 고친 것인지 알 수 없는 옷·코디 ${plan.conflicts.length}개(${names}${plan.conflicts.length>4?' 외':''})가 두 곳에서 내용이 다릅니다.\n백업 쪽 내용으로 바꿀까요? 취소하면 지금 옷장 쪽을 그대로 둡니다.`))prefer=new Set(plan.conflicts.map(x=>x.id));
     }
     const p2=prefer.size?planMerge(snap,prepared,tombs,prefer):plan,changes2=p2.putC.length+p2.delC.length+p2.putO.size+p2.delO.length;
-    if(!changes2){toast(plan.conflicts.length?`새로 더할 내용이 없습니다. 내용이 다른 ${plan.conflicts.length}개는 지금 옷장 쪽을 그대로 두었습니다.`:'합칠 내용이 없습니다. 이미 같은 옷장입니다.');return}
+    const none=plan.conflicts.length?`새로 더할 내용이 없습니다. 내용이 다른 ${plan.conflicts.length}개는 지금 옷장 쪽을 그대로 두었습니다.`:'합칠 내용이 없습니다. 이미 같은 옷장입니다.';
+    if(!changes2&&!p2.quietO.size){toast(none);return} // 별표·보관 시각만 맞출 것은 묻지 않고 쓴다
     const lines=[`${label}을(를) 지금 옷장과 합칠까요?`,`· 새 옷 ${p2.added.length}벌, 새 코디 ${p2.addO.length}개를 더합니다.`];
     if(p2.took.length)lines.push(`· 백업 쪽이 더 최근에 고친 옷 ${p2.took.length}벌(${p2.took.slice(0,3).map(nameOf).join(', ')}${p2.took.length>3?' 외':''})은 백업 내용으로 바꿉니다.`);
+    if(p2.tookO.length)lines.push(`· 코디 ${p2.tookO.length}개(${p2.tookO.slice(0,3).map(nameOf).join(', ')}${p2.tookO.length>3?' 외':''})는 더 최근에 고친 쪽 내용(이름·칸·즐겨찾기·보관)으로 맞춥니다.`);
+    if(p2.arcO.length)lines.push(`· 그중 다른 기기에서 보관한 코디 ${p2.arcO.length}개는 코디 목록의 '보관함'으로 옮겨집니다.`);
+    if(p2.unarcO.length)lines.push(`· 보관을 푼 코디 ${p2.unarcO.length}개는 코디 목록에 다시 보입니다.`);
     if(p2.stats.length||p2.updO.length)lines.push(`· 옷 ${p2.stats.length}벌·코디 ${p2.updO.length}개의 착용 기록을 합칩니다. 두 기기에서 따로 누른 '오늘 입음' 횟수는 큰 쪽만 남습니다.`);
     if(p2.delC.length||p2.delO.length)lines.push(`· 다른 기기에서 지운 옷 ${p2.delC.length}벌·코디 ${p2.delO.length}개를 여기서도 지웁니다(${[...p2.delC,...p2.delO].slice(0,3).map(nameOf).join(', ')}).`);
     if(p2.skipped)lines.push(`· 여기서 지운 옷·코디 ${p2.skipped}개는 다시 넣지 않습니다.`);
-    if(!confirm(lines.join('\n')))return;
+    if(changes2&&!confirm(lines.join('\n')))return;
     const ed=window.OF&&OF.editState?OF.editState():null;let done=null;
     // 확인창이 떠 있던 사이의 변경을 잃지 않도록 트랜잭션 안에서 새로 읽어 같은 규칙으로 다시 계산해 쓴다
     await transaction(['clothes','outfits'],'readwrite',tx=>{
       const cs=tx.objectStore('clothes'),os=tx.objectStore('outfits'),qc=cs.getAll(),qo=os.getAll();let n=0;
       const go=()=>{if(++n<2)return;const pl=planMerge({clothes:qc.result||[],outfits:qo.result||[]},prepared,tombs,prefer);done=pl;
-        for(const c of pl.putC)cs.put(c);for(const c of pl.delC)cs.delete(c.id);for(const o of pl.putO.values())os.put(o);for(const o of pl.delO)os.delete(o.id)};
+        for(const c of pl.putC)cs.put(c);for(const c of pl.delC)cs.delete(c.id);for(const o of pl.putO.values())os.put(o);for(const o of pl.quietO.values())os.put(o);for(const o of pl.delO)os.delete(o.id)};
       qc.onsuccess=go;qo.onsuccess=go;
     });
     saveTombs(tombs);
     for(const c of done.took)imageCopies.delete(c.id); // 백업 사진으로 바뀐 옷은 화면용 사본을 새로 만든다
     await refresh();
-    if(ed&&OF.afterMerge)OF.afterMerge(ed,new Set([...done.putO.keys()]));
-    toast(`합쳤습니다: 새 옷 ${done.added.length}벌 · 바뀐 옷 ${done.took.length+done.stats.length}벌 · 새 코디 ${done.addO.length}개${done.delC.length+done.delO.length?` · 지운 것 ${done.delC.length+done.delO.length}개`:''}`);
+    if(ed&&OF.afterMerge)OF.afterMerge(ed,done.bodyO);
+    if(!changes2)return toast(none);
+    toast(`합쳤습니다: 새 옷 ${done.added.length}벌 · 바뀐 옷 ${done.took.length+done.stats.length}벌 · 새 코디 ${done.addO.length}개${done.tookO.length+done.updO.length?` · 바뀐 코디 ${done.tookO.length+done.updO.length}개`:''}${done.arcO.length?` · 보관함으로 ${done.arcO.length}개`:''}${done.delC.length+done.delO.length?` · 지운 것 ${done.delC.length+done.delO.length}개`:''}`);
   }catch(e){reportError(e,'합치지 못했습니다.')}finally{mutationBusy=false;$('mergePicker').value='';updateBatchButtons()}
 }
 let recSeen=new Set(),recAvoid={tops:new Set(),bottoms:new Set(),items:new Set()},recommendations=[];
@@ -791,4 +822,4 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 checkUpdate(false);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate(false)});
 if('serviceWorker' in navigator&&(location.protocol==='https:'||/^(localhost|127\.0\.0\.1)$/.test(location.hostname)))window.addEventListener('load',()=>navigator.serviceWorker.register(`./sw.js?v=${APP_VERSION}`).catch(()=>{})); // 오프라인에서도 앱 화면이 열리게
 (async()=>{const slow=setTimeout(()=>{if(!db)$('summary').textContent='옷장을 여는 데 시간이 걸립니다. 계속 이러면 옷 등록 탭의 강제 새로고침을 눌러주세요.'},10000);try{await openDB();clearTimeout(slow);await refresh();DIAG.start=Math.round(performance.now());requestPersist()}catch(e){DIAG.start='실패';clearTimeout(slow);$('summary').textContent='옷장을 불러오지 못했습니다. 새로고침해주세요.';reportError(e)}})();
-</script><script src="./outfits.js?v=4.10"></script></body></html>
+</script><script src="./outfit-list.js?v=4.11"></script><script src="./outfits.js?v=4.11"></script></body></html>

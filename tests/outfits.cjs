@@ -85,7 +85,7 @@ async function check(name, fn) {
       OF.pick('top'); OF.choose('t2'); OF.save(); await sleep(300);
       const rows = await outfitsDB();
       OF.saveNew(); await sleep(300);
-      return { afterTwo, overwritten: rows.length === 1 && rows[0].slots.top === 't2', total: (await outfitsDB()).length, btn: document.getElementById('outfit').textContent.includes('덮어쓰기') }; // v4.8.6: 저장하면 만들기 칸이 접혀 버튼은 접힌 칸 안에 있다
+      OF.builder(); return { afterTwo, overwritten: rows.length === 1 && rows[0].slots.top === 't2', total: (await outfitsDB()).length, btn: document.getElementById('outfit').textContent.includes('덮어쓰기') }; // v4.11: 저장하면 목록으로 돌아가므로 만들기 화면을 다시 연다
     });
     assert.deepEqual(r, { afterTwo: 1, overwritten: true, total: 2, btn: true });
   });
@@ -115,8 +115,8 @@ async function check(name, fn) {
       const [o] = await outfitsDB();
       await transaction(['outfits'], 'readwrite', tx => tx.objectStore('outfits').put({ id: 'legacy', name: '옛 코디', slots: { top: 't2', bottom: 'b1', shoes: null, acc: 'g1' }, createdAt: 5, worn: [] }));
       await refresh(); await sleep(50);
-      OF.pick('acc'); const accChoices = document.querySelectorAll('#pickGrid .pitem').length; OF.closePick();
-      return { bag: o.slots.bag, acc: o.slots.acc, accChoices, legacyImgs: [...document.querySelectorAll('#outfit .of-item')].find(e => e.innerText.includes('옛 코디')).querySelectorAll('img').length };
+      OF.pick('acc'); const accChoices = document.querySelectorAll('#pickGrid .pitem').length; OF.closePick(); OF.back(); OFL.query('옛 코디'); // v4.11: 칸 고르기는 만들기 화면, 저장 코디는 목록 격자(createdAt 5는 1970년 묶음이라 접혀 있어 검색으로 찾음)
+      return { bag: o.slots.bag, acc: o.slots.acc, accChoices, legacyImgs: [...document.querySelectorAll('#outfit .ofl-card')].find(e => e.textContent.includes('옛 코디')).querySelectorAll('img').length };
     });
     assert.deepEqual(r, { bag: 'g1', acc: 'a1', accChoices: 1, legacyImgs: 3 });
   });
@@ -210,7 +210,7 @@ async function check(name, fn) {
     await page.waitForFunction(() => /옷 8벌/.test(document.getElementById('summary').textContent) && window.OF);
     const r = await page.evaluate(async () => {
       window.goto = name => [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === name).click();
-      goto('코디'); await new Promise(r => setTimeout(r, 50));
+      goto('코디'); await new Promise(r => setTimeout(r, 50)); OF.builder(); // v4.11: 앱을 다시 열면 목록에서 시작하고 '이어서 만들기'로 초안을 연다
       const kept = { name: document.getElementById('outfitName').value, imgs: document.querySelectorAll('#outfit .card .fl-tile img').length };
       await transaction(['clothes'], 'readwrite', tx => tx.objectStore('clothes').delete('t1')); await refresh(); await new Promise(r => setTimeout(r, 50));
       const saved = JSON.parse(localStorage.getItem('wardrobe.outfitDraft'));

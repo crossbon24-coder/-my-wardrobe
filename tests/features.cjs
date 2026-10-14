@@ -431,7 +431,7 @@ async function check(name, fn, opts) {
       const shownB = clothes.find(c => c.id === 'b'); const bSize = (await (await fetch(url(shownB.image))).blob()).size;
       return { untouched, ids: Object.keys(cs).sort(), bMemo: cs.b.memo, bWear: cs.b.wearCount, bLast: cs.b.lastWorn, aMemo: cs.a.memo, o1Name: os.o1.name, o1Worn: os.o1.worn, o2: !!os.o2, shownB: bSize === cs.b.image.size, toast: toastText() };
     });
-    assert.deepEqual(r, { untouched: true, ids: ['a', 'b', 'c'], bMemo: '비 백업', bWear: 5, bLast: 9000, aMemo: '에이', o1Name: '출근', o1Worn: ['2026-09-01', '2026-09-02'], o2: true, shownB: true, toast: '합쳤습니다: 새 옷 1벌 · 바뀐 옷 1벌 · 새 코디 1개' });
+    assert.deepEqual(r, { untouched: true, ids: ['a', 'b', 'c'], bMemo: '비 백업', bWear: 5, bLast: 9000, aMemo: '에이', o1Name: '출근', o1Worn: ['2026-09-01', '2026-09-02'], o2: true, shownB: true, toast: '합쳤습니다: 새 옷 1벌 · 바뀐 옷 1벌 · 새 코디 1개 · 바뀐 코디 1개' }); // v4.11: 코디도 센다
   });
 
   await check('Content edits and outfit saves stamp updatedAt; wear records and unchanged saves do not (merge compares content by it)', async page => {
@@ -538,7 +538,7 @@ async function check(name, fn, opts) {
       const f = await mkFile([{ id: 'x', category: '상의', memo: 'X', blob: img, wearCount: 1 }], [{ ...o, name: '폰에서 고친 이름', updatedAt: o.updatedAt + 1000 }]);
       window.onConfirm = t => { if (t.includes('합칠까요')) transaction(['clothes'], 'readwrite', tx => { const s = tx.objectStore('clothes'), q = s.get('x'); q.onsuccess = () => s.put({ ...q.result, wearCount: 7 }); }); };
       await mergeBackup(f); window.onConfirm = null;
-      return { wear: (await same('x')).wearCount, name: (await outfitsDB())[0].name, draftName: document.getElementById('outfitName').value };
+      OF.builder(); return { wear: (await same('x')).wearCount, name: (await outfitsDB())[0].name, draftName: document.getElementById('outfitName').value };
     });
     assert.deepEqual(r, { wear: 7, name: '폰에서 고친 이름', draftName: '폰에서 고친 이름' });
   });
@@ -688,7 +688,7 @@ async function check(name, fn, opts) {
   }, { iphone: true, standalone: true });
 
   await check('Version is the same in APP_VERSION, version.json, the visible labels and both cache-busting script URLs', async page => {
-    const r = await page.evaluate(async () => { const html = await (await fetch('./index.html', { cache: 'no-store' })).text(), v = (await (await fetch('./version.json', { cache: 'no-store' })).json()).version; return { v, app: APP_VERSION, label: html.includes(`현재 버전 <b>v${v}</b>`), foot: html.includes(`Wardrobe v${v}`), imp: html.includes(`wardrobe-import.js?v=${v}`) && html.includes(`recommend.js?v=${v}`), out: html.includes(`outfits.js?v=${v}`) }; });
+    const r = await page.evaluate(async () => { const html = await (await fetch('./index.html', { cache: 'no-store' })).text(), v = (await (await fetch('./version.json', { cache: 'no-store' })).json()).version; return { v, app: APP_VERSION, label: html.includes(`현재 버전 <b>v${v}</b>`), foot: html.includes(`Wardrobe v${v}`), imp: html.includes(`wardrobe-import.js?v=${v}`) && html.includes(`recommend.js?v=${v}`), out: html.includes(`outfits.js?v=${v}`) && html.includes(`outfit-list.js?v=${v}`) }; });
     assert.equal(r.app, r.v); assert.deepEqual([r.label, r.foot, r.imp, r.out], [true, true, true, true]);
   });
 
@@ -706,7 +706,7 @@ async function check(name, fn, opts) {
       const fails = u => fetch(u).then(() => false, () => true);
       const names = await caches.keys(), keys = (await (await caches.open(names[0])).keys()).map(k => new URL(k.url).pathname + new URL(k.url).search);
       await checkUpdate(true);
-      return { names, v: APP_VERSION, extras: typeof initWardrobeExtras, outfits: keys.includes(`/outfits.js?v=${APP_VERSION}`), imp: keys.includes(`/wardrobe-import.js?v=${APP_VERSION}`) && keys.includes(`/recommend.js?v=${APP_VERSION}`), junk: keys.filter(k => /[?&](t|refresh)=|version\.json/.test(k)),
+      return { names, v: APP_VERSION, extras: typeof initWardrobeExtras, outfits: keys.includes(`/outfits.js?v=${APP_VERSION}`) && keys.includes(`/outfit-list.js?v=${APP_VERSION}`), imp: keys.includes(`/wardrobe-import.js?v=${APP_VERSION}`) && keys.includes(`/recommend.js?v=${APP_VERSION}`), junk: keys.filter(k => /[?&](t|refresh)=|version\.json/.test(k)),
         version: await fails('./version.json'), other: await fails('./outfits.js?v=0.1'), al };
     });
     await context.setOffline(false);
@@ -1154,16 +1154,17 @@ async function check(name, fn, opts) {
     assert.ok(r.fill >= 3, `fill shoes ${r.fill}`); assert.ok(r.dayKinds >= 3, `daily first screens ${r.dayKinds}`); assert.equal(r.same, true);
   });
 
-  await check('Outfit tab: the builder is folded when empty so saved outfits show on the first screen; it opens when a slot is filled', async page => {
+  await check('Outfit tab opens on the saved-outfit grid (no builder on top): many outfits fit the first screen; filling a slot opens the builder screen', async page => {
     const r = await page.evaluate(async () => {
       await basic();
-      await transaction(['outfits'], 'readwrite', tx => { const st = tx.objectStore('outfits'); for (let i = 0; i < 3; i++) st.put({ id: 'o' + i, name: '코디' + i, slots: { top: 't1', bottom: 'b1', shoes: 's1' }, createdAt: 1000 + i, worn: [] }); });
+      await transaction(['outfits'], 'readwrite', tx => { const st = tx.objectStore('outfits'); for (let i = 0; i < 12; i++) st.put({ id: 'o' + i, name: '코디' + i, slots: { top: 't1', bottom: 'b1', shoes: 's1' }, createdAt: Date.now() - i * 1000, worn: [] }); });
       await refresh(); goto('코디'); await sleep(50);
-      const b = document.querySelector('#outfit details.of-builder'), firstY = document.querySelector('#outfit .of-item').getBoundingClientRect().top;
-      const folded = !b.open; OF.choose && (OF.pick('top'), OF.choose('t2')); await sleep(50);
-      return { folded, firstY, opened: document.querySelector('#outfit details.of-builder').open };
+      const builder = !!document.getElementById('outfitName'), firstY = document.querySelector('#outfit .ofl-card').getBoundingClientRect().top;
+      const fold = [...document.querySelectorAll('#outfit .ofl-card')].filter(e => e.getBoundingClientRect().bottom <= 844).length;
+      OF.pick('top'); OF.choose('t2'); await sleep(50);
+      return { builder, firstY, fold, opened: !!document.getElementById('outfitName') };
     });
-    assert.equal(r.folded, true); assert.ok(r.firstY < 844, `first saved outfit at ${r.firstY}px`); assert.equal(r.opened, true);
+    assert.equal(r.builder, false); assert.ok(r.firstY < 600, `first saved outfit at ${r.firstY}px`); assert.ok(r.fold >= 6, `cards on the first screen ${r.fold}`); assert.equal(r.opened, true);
   });
 
   await check('Garment sheet shows "outfits with this item" (folded, count) and tapping one goes to that outfit in the outfit list; items without outfits show nothing; merge compares outfit favourite/archive/tags', async page => {
@@ -1175,17 +1176,16 @@ async function check(name, fn, opts) {
         st.put({ id: 'ob', name: '니트 출근', slots: { top: 't1', bottom: 'b1', shoes: 's1' }, createdAt: 200, worn: [] }); });
       await refresh();
       openEdit('t1'); const d = document.getElementById('ofRelated');
-      const shown = { hidden: d.hidden, open: d.open, text: d.querySelector('summary').textContent, cards: d.querySelectorAll('.of-rel').length };
+      const shown = { hidden: d.hidden, open: d.open, text: d.querySelector('summary').textContent, cards: d.querySelectorAll('.of-rel:not(.of-rel-all)').length, all: !!d.querySelector('.of-rel-all') };
       closeEdit(); openEdit('t2'); const none = document.getElementById('ofRelated').hidden; closeEdit();
       openEdit('t1'); document.querySelectorAll('#ofRelated .of-rel')[0].click(); await sleep(100); // 최근 입은 코디(oa)가 첫 번째
-      const el = document.querySelector('#outfit .of-item[data-of="oa"]');
-      const went = { page: document.querySelector('.page.active').id, edit: document.getElementById('editModal').classList.contains('open'), found: !!el, flash: !!el && el.classList.contains('of-flash') };
+      const went = { page: document.querySelector('.page.active').id, edit: document.getElementById('editModal').classList.contains('open'), detail: document.getElementById('oflModal').classList.contains('open') && OFL.state().detail, title: document.querySelector('#oflDetail h2').textContent }; // v4.11: 그 코디의 상세 창이 열린다
       const base = { name: 'a', slots: { top: 't1' } };
       return { shown, none, went, fav: sameOutfit(base, { ...base, fav: true }), tags: sameOutfit({ ...base, tags: ['출근'] }, { ...base, tags: [] }), plain: sameOutfit(base, { ...base }) };
     });
-    assert.deepEqual(r.shown, { hidden: false, open: false, text: '이 옷이 든 코디 2개 · 입은 날 1일', cards: 2 }); // v4.10: 입은 날 수가 붙는다
+    assert.deepEqual(r.shown, { hidden: false, open: false, text: '이 옷이 든 코디 2개 · 입은 날 1일', cards: 2, all: true }); // v4.10: 입은 날 수, v4.11: '모두 보기'
     assert.equal(r.none, true);
-    assert.deepEqual(r.went, { page: 'outfit', edit: false, found: true, flash: true });
+    assert.deepEqual(r.went, { page: 'outfit', edit: false, detail: 'oa', title: '니트 코디' });
     assert.deepEqual([r.fav, r.tags, r.plain], [false, false, true]);
   });
 
@@ -1216,22 +1216,19 @@ async function check(name, fn, opts) {
     assert.equal(r.shortsWithDress, 0, JSON.stringify(r)); assert.equal(r.casualWithDress, 0); assert.ok(r.firstBags >= 2, `first screen bags ${r.firstBags}`); assert.equal(r.coldOuter, 'oc');
   });
 
-  await check('Builder stays folded after saving and reopening the app; a tap on its title is remembered; loading an outfit opens it even when its items were deleted; outfit tags compare in any order', async page => {
-    await page.evaluate(async () => { await basic(); goto('코디'); OF.pick('top'); OF.choose('t1'); OF.pick('bottom'); OF.choose('b1'); OF.save(); await sleep(400); });
+  await check('After saving and reopening the app the outfit tab starts on the list (old builder-fold setting removed); loading an outfit opens the builder even when its items were deleted; outfit tags compare in any order', async page => {
+    await page.evaluate(async () => { localStorage.setItem('wardrobe.builderOpen', '1'); await basic(); goto('코디'); OF.pick('top'); OF.choose('t1'); OF.pick('bottom'); OF.choose('b1'); OF.save(); await sleep(400); });
     await page.reload(); await page.waitForFunction(() => window.OF && /옷 \d+벌/.test(document.getElementById('summary').textContent));
     const r = await page.evaluate(async () => {
       [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === '코디').click(); await new Promise(r => setTimeout(r, 100));
-      const b = () => document.querySelector('#outfit details.of-builder');
-      const afterReload = { open: b().open, firstY: document.querySelector('#outfit .of-item').getBoundingClientRect().top };
-      b().querySelector('summary').click(); await new Promise(r => setTimeout(r, 50)); const pref = localStorage.getItem('wardrobe.builderOpen');
-      b().querySelector('summary').click(); await new Promise(r => setTimeout(r, 50));
+      const afterReload = { builder: !!document.getElementById('outfitName'), banner: !!document.querySelector('#outfit .of-resume'), firstY: document.querySelector('#outfit .ofl-card').getBoundingClientRect().top, pref: localStorage.getItem('wardrobe.builderOpen') };
       await transaction(['outfits'], 'readwrite', tx => tx.objectStore('outfits').put({ id: 'empty1', name: '빈 코디', slots: { top: 'gone' }, createdAt: 1, worn: [] })); await refresh();
       OF.load('empty1'); await new Promise(r => setTimeout(r, 50));
       const base = { name: 'a', slots: {} };
-      return { afterReload, pref, loadedOpen: b().open, tags: sameOutfit({ ...base, tags: ['출근', '데이트'] }, { ...base, tags: ['데이트', '출근'] }) };
+      return { afterReload, loaded: !!document.getElementById('outfitName') && document.getElementById('outfitName').value, tags: sameOutfit({ ...base, tags: ['출근', '데이트'] }, { ...base, tags: ['데이트', '출근'] }) };
     });
-    assert.equal(r.afterReload.open, false); assert.ok(r.afterReload.firstY < 844, `first outfit at ${r.afterReload.firstY}`);
-    assert.equal(r.pref, '1'); assert.equal(r.loadedOpen, true); assert.equal(r.tags, true);
+    assert.deepEqual([r.afterReload.builder, r.afterReload.banner, r.afterReload.pref], [false, false, null]); assert.ok(r.afterReload.firstY < 600, `first outfit at ${r.afterReload.firstY}`);
+    assert.equal(r.loaded, '빈 코디'); assert.equal(r.tags, true);
   });
 
   await check('Recommend tab: "다른 추천 보기" sits above the results; the third card is a "new try" built from less-worn items; work recommendations warn when formal clothes are few', async page => {
@@ -1405,6 +1402,275 @@ async function check(name, fn, opts) {
     });
     assert.match(r.afterSave, /코디 1/); assert.match(r.before, /입은 날 1일/); assert.doesNotMatch(r.after, /입은 날/);
     assert.equal(r.btnHidden, true); assert.equal(r.asked, true); assert.equal(r.top, 't1', 'cancel keeps the worn outfit as it was'); assert.doesNotMatch(r.afterDel, /코디/);
+  });
+
+  await check('Outfit list: 3-column grid, favourites pinned on top once, archived hidden, month groups (this and last month open, 30 per group with more), search by item, 보관함·오래 안 입음·즐겨찾기 chips, sorting by last worn groups by worn month and is remembered', async page => {
+    const r = await page.evaluate(async () => {
+      await basic();
+      const monthStart = k => { const d = new Date(); d.setDate(1); d.setHours(12, 0, 0, 0); d.setMonth(d.getMonth() - k); return d.getTime(); };
+      const ago = n => { const d = new Date(); d.setDate(d.getDate() - n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+      await transaction(['outfits'], 'readwrite', tx => { const st = tx.objectStore('outfits');
+        for (let i = 0; i < 35; i++) st.put({ id: 'n' + i, name: '이번달' + i, slots: { top: 't2', bottom: 'b1' }, createdAt: monthStart(0) + i, worn: [] });
+        st.put({ id: 'p1', name: '지난달 코디', slots: { top: 't1', bottom: 'b1' }, createdAt: monthStart(1), worn: [ago(45)] });
+        st.put({ id: 'old', name: '석달전 코디', slots: { top: 't3', bottom: 'b1', bag: 'g1' }, createdAt: monthStart(3), worn: [ago(100)] });
+        st.put({ id: 'fv', name: '즐겨찾는 코디', slots: { top: 't1', bottom: 'b1', shoes: 's1' }, createdAt: monthStart(3) + 5, worn: [ago(0)], fav: true });
+        st.put({ id: 'ar', name: '보관 코디', slots: { top: 't3', bottom: 'b1' }, createdAt: monthStart(0) + 100, worn: [], archived: true }); });
+      await refresh(); goto('코디'); await sleep(30);
+      const ids = () => [...document.querySelectorAll('#oflBody .ofl-card')].map(e => e.dataset.of);
+      const head = { badge: document.querySelector('#outfit .of-head .badge').textContent, newBtn: !!document.querySelector('#outfit .of-new'), builder: !!document.getElementById('outfitName') };
+      const all = ids(), groups = [...document.querySelectorAll('#oflBody .ofl-group')].map(g => ({ open: g.classList.contains('open'), text: g.querySelector('.ofl-ghead').textContent.trim(), n: g.querySelectorAll('.ofl-card').length }));
+      const cols = getComputedStyle(document.querySelector('#oflBody .ofl-grid')).gridTemplateColumns.split(' ').length, more = !!document.querySelector('#oflBody .ofl-group .ofl-more');
+      document.querySelectorAll('#oflBody .ofl-group')[2].querySelector('.ofl-ghead').click(); const oldShown = ids().includes('old');
+      document.querySelector('#oflBody .ofl-group .ofl-more').click(); const afterMore = document.querySelectorAll('#oflBody .ofl-group')[0].querySelectorAll('.ofl-card').length;
+      const inp = document.getElementById('oflSearch'); inp.value = '포터'; inp.dispatchEvent(new Event('input')); const search = ids(), focusKept = document.getElementById('oflSearch') === inp; // 검색칸은 그대로(목록만 다시 그림)
+      OFL.query(''); OFL.chip('archived'); const archived = ids();
+      OFL.chip('stale'); const stale = { count: document.querySelector('#oflBody .ofl-count').textContent, shown: ids().length }; OFL.more('flat'); stale.tail = ids().slice(-2); stale.all = ids().sort();
+      OFL.chip('fav'); const favOnly = ids(); OFL.chip('fav'); const backToAll = OFL.state().chip;
+      OFL.sort('last'); const lastGroups = [...document.querySelectorAll('#oflBody .ofl-ghead b')].map(b => b.textContent);
+      return { head, firstFav: all[0], archivedShown: all.includes('ar'), favTimes: all.filter(x => x === 'fv').length, groups, cols, more, oldShown, afterMore, search, focusKept, archived, stale, favOnly, backToAll, lastGroups, sortSaved: localStorage.getItem('wardrobe.outfitSort') };
+    });
+    assert.deepEqual(r.head, { badge: '38개', newBtn: true, builder: false });
+    assert.equal(r.firstFav, 'fv'); assert.equal(r.archivedShown, false); assert.equal(r.favTimes, 1);
+    assert.deepEqual(r.groups.map(g => [g.open, g.n]), [[true, 30], [true, 1], [false, 0]]); assert.match(r.groups[0].text, /35개/); assert.match(r.groups[2].text, /1개/);
+    assert.equal(r.cols, 3); assert.equal(r.more, true); assert.equal(r.oldShown, true); assert.equal(r.afterMore, 35);
+    assert.deepEqual(r.search, ['old']); assert.equal(r.focusKept, true); assert.deepEqual(r.archived, ['ar']);
+    assert.deepEqual([r.stale.count, r.stale.shown], ['37개', 30]); assert.deepEqual(r.stale.tail, ['old', 'p1'], 'never worn first, then the longest ago'); assert.deepEqual(r.stale.all, [...Array.from({ length: 35 }, (_, i) => 'n' + i), 'old', 'p1'].sort()); assert.deepEqual(r.favOnly, ['fv']); assert.equal(r.backToAll, 'all');
+    assert.equal(r.lastGroups.length, 3); assert.equal(r.lastGroups[2], '입은 기록 없음'); assert.equal(r.sortSaved, 'last');
+  });
+
+  await check('Outfit detail: a card opens items and worn days; 오늘 입음, favourite (kept as true/false with its own favAt, updatedAt untouched), archive (only in 보관함), rename and delete work there; an item opens its garment window; 고치기 opens the builder', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); window.prompt = () => '주말룩';
+      await transaction(['outfits'], 'readwrite', tx => tx.objectStore('outfits').put({ id: 'o1', name: '출근룩', slots: { top: 't2', bottom: 'b1', shoes: 's1', bag: 'gone' }, createdAt: Date.now() - 1000, updatedAt: 5, worn: ['2026-09-01'] }));
+      await refresh(); goto('코디'); await sleep(30);
+      const card = () => document.querySelector('#oflBody .ofl-card[data-of="o1"]'), m = () => document.getElementById('oflDetail'), btn = (sel, text) => [...m().querySelectorAll(sel)].find(b => b.textContent === text);
+      card().click(); await sleep(30);
+      const first = { open: document.getElementById('oflModal').classList.contains('open'), title: m().querySelector('h2').textContent, items: [...m().querySelectorAll('.ofl-it')].map(e => e.textContent.replace(/\s+/g, ' ').trim()), days: /입은 날 (26\/)?9\/1/.test(m().textContent) };
+      btn('.ofl-main button', '오늘 입음').click(); await sleep(300);
+      const wornBtn = m().querySelector('.ofl-main button'), afterWear = { text: wornBtn.textContent, disabled: wornBtn.disabled, worn: (await outfitsDB())[0].worn.length };
+      m().querySelector('.ofl-favbtn').click(); await sleep(200); const f1 = (await outfitsDB())[0], star = !!card().querySelector('.ofl-star');
+      m().querySelector('.ofl-favbtn').click(); await sleep(200); const f2 = (await outfitsDB())[0];
+      btn('.ofl-menu button', '보관').click(); await sleep(200);
+      const arch = { rec: (await outfitsDB())[0].archived, listed: !!card(), note: !!m().querySelector('.ofl-archived') };
+      OFL.chip('archived'); const inArchive = !!card();
+      btn('.ofl-menu button', '보관 해제').click(); await sleep(200); const unarch = (await outfitsDB())[0].archived; OFL.chip('all');
+      btn('.ofl-menu button', '이름 바꾸기').click(); await sleep(200); const renamed = m().querySelector('h2').textContent;
+      m().querySelector('.ofl-it').click(); await sleep(50);
+      const garment = { detailClosed: !document.getElementById('oflModal').classList.contains('open'), edit: document.getElementById('editModal').classList.contains('open'), panel: !document.getElementById('ofRelated').hidden }; closeEdit();
+      card().click(); await sleep(30); btn('.ofl-main button', '고치기').click(); await sleep(50);
+      const edit = { name: document.getElementById('outfitName').value, title: document.querySelector('#outfit .of-bar h2').textContent };
+      OF.back(); card().click(); await sleep(30); window.confirmAnswer = true; btn('.ofl-menu button', '삭제').click(); await sleep(300);
+      const deleted = { closed: !document.getElementById('oflModal').classList.contains('open'), n: (await outfitsDB()).length };
+      return { first, afterWear, f1: [f1.fav, f1.updatedAt === 5, f1.favAt > 0], star, f2: ['fav' in f2, f2.fav], arch, inArchive, unarch, renamed, garment, edit, deleted };
+    });
+    assert.equal(r.first.open, true); assert.equal(r.first.title, '출근룩'); assert.equal(r.first.items.length, 4); assert.match(r.first.items[0], /상의 화이트 셔츠/); assert.match(r.first.items[3], /가방 지운 옷/); assert.equal(r.first.days, true);
+    assert.deepEqual(r.afterWear, { text: '오늘 입음 ✓', disabled: true, worn: 2 });
+    assert.deepEqual(r.f1, [true, true, true], 'star keeps updatedAt (name/slots time) and stamps favAt'); assert.equal(r.star, true); assert.deepEqual(r.f2, [true, false], 'turning favourite off keeps fav:false (merge tells "off" from "unknown")');
+    assert.deepEqual(r.arch, { rec: true, listed: false, note: true }); assert.equal(r.inArchive, true); assert.equal(r.unarch, false);
+    assert.equal(r.renamed, '주말룩'); assert.deepEqual(r.garment, { detailClosed: true, edit: true, panel: true });
+    assert.deepEqual(r.edit, { name: '주말룩', title: '코디 고치기' }); assert.deepEqual(r.deleted, { closed: true, n: 0 });
+  });
+
+  await check('Archived outfits leave the closet "outfit n", the pick-sheet badge and the garment strip, but their worn days still count; "see all" filters the outfit list to that item and its chip clears it', async page => {
+    const r = await page.evaluate(async () => {
+      await basic();
+      await transaction(['outfits'], 'readwrite', tx => { const st = tx.objectStore('outfits');
+        st.put({ id: 'o1', name: '하나', slots: { top: 't1', bottom: 'b1' }, createdAt: 3, worn: ['2026-10-01'] });
+        st.put({ id: 'o2', name: '둘', slots: { top: 't1', bottom: 'b1', shoes: 's1' }, createdAt: 2, worn: [] });
+        st.put({ id: 'o3', name: '보관함', slots: { top: 't1', bottom: 'b1' }, createdAt: 1, worn: ['2026-09-20'], archived: true });
+        st.put({ id: 'o4', name: '셔츠', slots: { top: 't2', bottom: 'b1' }, createdAt: 4, worn: [] }); });
+      await refresh(); goto('옷장');
+      const cardOf = id => [...document.querySelectorAll('#items .item')].find(e => (e.querySelector('img').getAttribute('onclick') || '').includes(id)).innerText;
+      const closet = cardOf('t1');
+      openEdit('t1'); const d = document.getElementById('ofRelated');
+      const panel = { text: d.querySelector('summary').textContent, strip: d.querySelectorAll('.of-rel:not(.of-rel-all)').length };
+      d.querySelector('.of-rel-all').click(); await sleep(50);
+      const filtered = { page: document.querySelector('.page.active').id, item: OFL.state().item, ids: [...document.querySelectorAll('#oflBody .ofl-card')].map(e => e.dataset.of).sort(), chip: document.querySelector('#outfit .ofl-itemrow').textContent };
+      document.querySelector('#outfit .ofl-itemrow button').click(); const cleared = { item: OFL.state().item, hasO4: !!document.querySelector('#oflBody .ofl-card[data-of="o4"]') };
+      OF.pick('top'); await sleep(20); const badge = [...document.querySelectorAll('#pickGrid .pitem')].find(e => e.textContent.includes('그레이 니트')).querySelector('.pcount').textContent; OF.closePick();
+      return { closet, panel, filtered, cleared, badge };
+    });
+    assert.match(r.closet, /코디 2/); assert.deepEqual(r.panel, { text: '이 옷이 든 코디 2개 · 입은 날 2일', strip: 2 });
+    assert.deepEqual(r.filtered.ids, ['o1', 'o2']); assert.equal(r.filtered.page, 'outfit'); assert.equal(r.filtered.item, 't1'); assert.match(r.filtered.chip, /이 옷이 든 코디만: 그레이 니트/);
+    assert.deepEqual(r.cleared, { item: null, hasO4: true }); assert.equal(r.badge, '코디 2');
+  });
+
+  await check('Merge keeps a favourite/archive set on one device when the newer side never had that field; an explicit false from the newer side wins; restore rejects a non-boolean favourite', async page => {
+    await page.evaluate(MERGE_HELPERS);
+    const r = await page.evaluate(async () => {
+      const img = await jpeg('#567'); await seed([{ id: 'x', category: '상의', memo: 'X', image: img }]);
+      await transaction(['outfits'], 'readwrite', tx => { const st = tx.objectStore('outfits');
+        st.put({ id: 'a', name: '폰 코디', slots: { top: 'x' }, createdAt: 1, updatedAt: 2000, worn: [], fav: true });
+        st.put({ id: 'b', name: '보관 코디', slots: { top: 'x' }, createdAt: 2, updatedAt: 1000, worn: [], archived: true });
+        st.put({ id: 'c', name: '즐찾 코디', slots: { top: 'x' }, createdAt: 3, updatedAt: 2000, worn: [], fav: true }); });
+      await refresh();
+      const f = await mkFile([{ id: 'x', category: '상의', memo: 'X', blob: img }], [
+        { id: 'a', name: 'PC에서 바꾼 이름', slots: { top: 'x' }, createdAt: 1, updatedAt: 3000, worn: [] },
+        { id: 'b', name: 'PC 이름', slots: { top: 'x' }, createdAt: 2, updatedAt: 3000, worn: ['2026-10-02'] },
+        { id: 'c', name: '즐찾 코디', slots: { top: 'x' }, createdAt: 3, updatedAt: 3000, worn: [], fav: false }]);
+      await mergeBackup(f);
+      const o = Object.fromEntries((await outfitsDB()).map(x => [x.id, x]));
+      const bad = await prepareRestore({ app: 'my-wardrobe', clothes: [], outfits: [{ id: 'z', name: 'z', slots: {}, fav: 'yes' }] }).then(() => '', e => e.message);
+      const badTags = await prepareRestore({ app: 'my-wardrobe', clothes: [], outfits: [{ id: 'z', name: 'z', slots: {}, tags: [1] }] }).then(() => '', e => e.message);
+      return { a: [o.a.name, o.a.fav], b: [o.b.name, o.b.archived, o.b.worn], c: [o.c.fav], bad, badTags };
+    });
+    assert.deepEqual(r.a, ['PC에서 바꾼 이름', true]); assert.deepEqual(r.b, ['PC 이름', true, ['2026-10-02']]); assert.deepEqual(r.c, [false]);
+    assert.match(r.bad, /즐겨찾기/); assert.match(r.badTags, /태그/);
+  });
+
+  await check('"+ 새 코디" opens the builder; going back keeps the draft with a resume banner; saving returns to the list and highlights the saved outfit; then "+ 새 코디" starts empty; loading another outfit over an unsaved draft asks first', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); goto('코디');
+      const s0 = { builder: !!document.getElementById('outfitName'), list: !!document.getElementById('oflBody') };
+      document.querySelector('#outfit .of-new').click(); await sleep(20);
+      const s1 = { builder: !!document.getElementById('outfitName'), title: document.querySelector('#outfit .of-bar h2').textContent };
+      OF.pick('top'); OF.choose('t1'); OF.pick('bottom'); OF.choose('b1'); document.querySelector('#outfit .of-back').click(); await sleep(20);
+      const s2 = document.querySelector('#outfit .of-resume')?.textContent || '';
+      document.querySelector('#outfit .of-new').click(); await sleep(20); const s3 = document.querySelectorAll('#outfit .fl-tile img').length;
+      OF.name('저장 테스트'); OF.save(); await sleep(400);
+      const [o] = await outfitsDB(), card = document.querySelector(`#oflBody .ofl-card[data-of="${o.id}"]`);
+      const s4 = { list: !!document.getElementById('oflBody'), card: !!card, flash: !!card && card.classList.contains('of-flash'), banner: !!document.querySelector('#outfit .of-resume') };
+      document.querySelector('#outfit .of-new').click(); await sleep(20);
+      const s5 = { imgs: document.querySelectorAll('#outfit .fl-tile img').length, title: document.querySelector('#outfit .of-bar h2').textContent };
+      OF.pick('top'); OF.choose('t2');
+      window.confirmAnswer = false; const n0 = confirms.length; OF.load(o.id); const asked = confirms.length > n0, stillNew = document.querySelector('#outfit .of-bar h2').textContent;
+      window.confirmAnswer = true; OF.load(o.id); const loaded = document.querySelector('#outfit .of-bar h2').textContent;
+      return { s0, s1, s2, s3, s4, s5, asked, stillNew, loaded };
+    });
+    assert.deepEqual(r.s0, { builder: false, list: true }); assert.deepEqual(r.s1, { builder: true, title: '새 코디' });
+    assert.match(r.s2, /만들던 코디가 있습니다 \(2칸\)/); assert.equal(r.s3, 2);
+    assert.deepEqual(r.s4, { list: true, card: true, flash: true, banner: false }); assert.deepEqual(r.s5, { imgs: 0, title: '새 코디' });
+    assert.equal(r.asked, true); assert.equal(r.stillNew, '새 코디'); assert.equal(r.loaded, '코디 고치기');
+  });
+
+  await check('Adding a past day from the calendar picks from a searchable grid; favourites first, archived last', async page => {
+    const r = await page.evaluate(async () => {
+      await basic();
+      await transaction(['outfits'], 'readwrite', tx => { const st = tx.objectStore('outfits');
+        st.put({ id: 'a', name: '니트 코디', slots: { top: 't1', bottom: 'b1' }, createdAt: 3, worn: [] });
+        st.put({ id: 'f', name: '즐찾 코디', slots: { top: 't3', bottom: 'b1' }, createdAt: 1, worn: [], fav: true });
+        st.put({ id: 'b', name: '셔츠 코디', slots: { top: 't2', bottom: 'b1' }, createdAt: 5, worn: [], archived: true }); });
+      await refresh(); goto('코디');
+      const d = new Date(); d.setDate(d.getDate() - 2); const past = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      OF.addWorn(past); const names = () => [...document.querySelectorAll('#wornGrid .ofl-name')].map(e => e.textContent);
+      const order = names(); const inp = document.getElementById('wornSearch'); inp.value = '화이트'; inp.dispatchEvent(new Event('input')); const q = names();
+      document.querySelector('#wornGrid .ofl-card').click(); await sleep(300);
+      return { order, q, worn: (await outfitsDB()).find(o => o.id === 'b').worn, closed: !document.getElementById('wornModal').classList.contains('open') };
+    });
+    assert.deepEqual(r.order, ['즐찾 코디', '니트 코디', '셔츠 코디']); assert.deepEqual(r.q, ['셔츠 코디']); assert.equal(r.worn.length, 1); assert.equal(r.closed, true);
+  });
+
+  await check('Editing safeguards: 고치기 on the outfit being edited resumes the unsaved edits (revert is explicit); cancelling 고치기 keeps the sheet; deleting the just-saved outfit leaves no phantom draft; 코디에 담기 after saving starts a new outfit; an outfit with a deleted item is not "changed" after 고치기; sheets open at the top', async page => {
+    const r = await page.evaluate(async () => {
+      await basic();
+      await transaction(['outfits'], 'readwrite', tx => { const st = tx.objectStore('outfits');
+        st.put({ id: 'A', name: '출근룩', slots: { top: 't1', bottom: 'b1' }, createdAt: Date.now() - 2000, worn: [] });
+        st.put({ id: 'B', name: '반쪽', slots: { top: 't2', bottom: 'b1', bag: 'gone' }, createdAt: Date.now() - 1000, worn: [] }); });
+      await refresh(); goto('코디'); await sleep(20);
+      const m = () => document.getElementById('oflDetail'), open = id => { document.querySelector(`#oflBody .ofl-card[data-of="${id}"]`).click(); }, btn = t => [...m().querySelectorAll('button')].find(b => b.textContent === t);
+      open('A'); btn('고치기').click(); await sleep(20); OF.pick('top'); OF.choose('t3'); OF.back();
+      const banner = document.querySelector('#outfit .of-resume')?.textContent || '';
+      const n0 = confirms.length; open('A'); btn('고치기').click(); await sleep(20);
+      const resumed = { top: JSON.parse(localStorage.getItem('wardrobe.outfitDraft')).draft.top, asked: confirms.length > n0, revertBtn: !!document.querySelector('#outfit .of-editing button[onclick*="revert"]') };
+      window.confirmAnswer = true; OF.revert(); const reverted = JSON.parse(localStorage.getItem('wardrobe.outfitDraft')).draft.top;
+      OF.pick('top'); OF.choose('t3'); OF.back(); open('B'); window.confirmAnswer = false; btn('고치기').click(); await sleep(20);
+      const keptSheet = { open: document.getElementById('oflModal').classList.contains('open'), detail: OFL.state().detail };
+      window.confirmAnswer = true; btn('고치기').click(); await sleep(20); OF.back(); await sleep(20);
+      const missingClean = { banner: !!document.querySelector('#outfit .of-resume'), hasDraft: OF.hasDraft() };
+      OF.newOutfit(); OF.pick('top'); OF.choose('t2'); OF.pick('bottom'); OF.choose('b1'); OF.name('토요일'); OF.save(); await sleep(400);
+      const sat = (await outfitsDB()).find(o => o.name === '토요일');
+      open(sat.id); btn('삭제').click(); await sleep(400);
+      const afterDelete = { banner: !!document.querySelector('#outfit .of-resume'), hasDraft: OF.hasDraft() }; OF.newOutfit(); afterDelete.imgs = document.querySelectorAll('#outfit .fl-tile img').length; OF.back();
+      OF.newOutfit(); OF.pick('top'); OF.choose('t1'); OF.pick('bottom'); OF.choose('b1'); OF.name('일요일'); OF.save(); await sleep(400);
+      goto('옷장'); openEdit('t2'); document.getElementById('ofAddBtn').click(); await sleep(50);
+      const added = { title: document.querySelector('#outfit .of-bar h2').textContent, imgs: document.querySelectorAll('#outfit .fl-tile img').length, name: document.getElementById('outfitName').value };
+      OF.back(); open('A'); const sh = document.querySelector('#oflModal .sheet'); sh.scrollTop = 400; OFL.close(); open('B'); const top = sh.scrollTop;
+      return { banner, resumed, reverted, keptSheet, missingClean, afterDelete, added, top };
+    });
+    assert.match(r.banner, /출근룩' 고치던 내용이 있습니다/);
+    assert.deepEqual(r.resumed, { top: 't3', asked: false, revertBtn: true }); assert.equal(r.reverted, 't1');
+    assert.deepEqual(r.keptSheet, { open: true, detail: 'B' });
+    assert.deepEqual(r.missingClean, { banner: false, hasDraft: false });
+    assert.deepEqual(r.afterDelete, { banner: false, hasDraft: false, imgs: 0 });
+    assert.deepEqual(r.added, { title: '새 코디', imgs: 1, name: '' });
+    assert.equal(r.top, 0);
+  });
+
+  await check('Merge picks name/slots by updatedAt and favourite/archive by their own times: a PC rename survives a later phone star in both directions; an off-vs-missing favourite is not a change; a backup holding a version newer than a deletion keeps it; archiving from the other device is announced', async page => {
+    await page.evaluate(MERGE_HELPERS);
+    const r = await page.evaluate(async () => {
+      const img = await jpeg('#567'); await seed([{ id: 'x', category: '상의', memo: 'X', image: img }]);
+      const put = rows => transaction(['outfits'], 'readwrite', tx => { const st = tx.objectStore('outfits'); st.clear(); for (const o of rows) st.put(o); });
+      const db = async () => Object.fromEntries((await outfitsDB()).map(o => [o.id, o]));
+      // 폰: 1000에 맞춘 X를 지금 별표. PC 백업: 2000에 이름·칸을 바꾼 X
+      await put([{ id: 'X', name: '출근룩', slots: { top: 'x' }, createdAt: 1, updatedAt: 1000, worn: [] }]); await refresh(); OF.fav('X', true); await sleep(200);
+      const phone = (await db()).X;
+      await mergeBackup(await mkFile([{ id: 'x', category: '상의', memo: 'X', blob: img }], [{ id: 'X', name: 'PC에서 고친 이름', slots: { top: 'x', bottom: null }, createdAt: 1, updatedAt: 2000, worn: [] }])); await sleep(100);
+      const onPhone = (await db()).X;
+      // PC 쪽에서 폰 백업을 합칠 때
+      await put([{ id: 'X', name: 'PC에서 고친 이름', slots: { top: 'x', bottom: null }, createdAt: 1, updatedAt: 2000, worn: [] }]); await refresh();
+      await mergeBackup(await mkFile([{ id: 'x', category: '상의', memo: 'X', blob: img }], [phone])); await sleep(100);
+      const onPC = (await db()).X;
+      // 끔(false)과 없음은 같은 뜻: 합칠 내용 없음
+      await put([{ id: 'Y', name: 'Y', slots: { top: 'x' }, createdAt: 1, updatedAt: 1000, worn: [] }]); await refresh(); const c0 = confirms.length;
+      await mergeBackup(await mkFile([{ id: 'x', category: '상의', memo: 'X', blob: img }], [{ id: 'Y', name: 'Y', slots: { top: 'x' }, createdAt: 1, updatedAt: 1000, worn: [], fav: false, favAt: 5000 }])); await sleep(100);
+      const noop = { asked: confirms.length > c0, toast: toastText() };
+      // 지운 표시(150)보다 나중에 고친 버전(200)을 백업이 갖고 있으면 지우지 않는다
+      await put([{ id: 'Z', name: 'Z', slots: { top: 'x' }, createdAt: 1, updatedAt: 100, worn: ['2026-10-01'] }]); await refresh();
+      await mergeBackup(await mkFile([{ id: 'x', category: '상의', memo: 'X', blob: img }], [{ id: 'Z', name: 'Z2', slots: { top: 'x' }, createdAt: 1, updatedAt: 200, worn: [] }], { c: {}, o: { Z: 150 }, w: {} })); await sleep(100);
+      const z = (await db()).Z;
+      // 다른 기기에서 보관한 코디는 확인창에 알린다
+      await put([{ id: 'W', name: 'W', slots: { top: 'x' }, createdAt: 1, updatedAt: 1000, worn: [] }]); await refresh(); const c1 = confirms.length;
+      await mergeBackup(await mkFile([{ id: 'x', category: '상의', memo: 'X', blob: img }], [{ id: 'W', name: 'W', slots: { top: 'x' }, createdAt: 1, updatedAt: 1000, worn: [], archived: true, archivedAt: 3000 }])); await sleep(100);
+      const arch = { text: confirms.slice(c1).join('\n'), rec: (await db()).W.archived, summary: document.getElementById('summary').textContent };
+      return { phone: [phone.updatedAt, phone.fav, phone.favAt > 1000], onPhone: [onPhone.name, onPhone.fav], onPC: [onPC.name, onPC.fav], noop, z: z && [z.name, z.worn], arch };
+    });
+    assert.deepEqual(r.phone, [1000, true, true]);
+    assert.deepEqual(r.onPhone, ['PC에서 고친 이름', true]); assert.deepEqual(r.onPC, ['PC에서 고친 이름', true]);
+    assert.equal(r.noop.asked, false); assert.match(r.noop.toast, /합칠 내용이 없습니다/);
+    assert.deepEqual(r.z, ['Z2', ['2026-10-01']]);
+    assert.match(r.arch.text, /보관함/); assert.equal(r.arch.rec, true); assert.match(r.arch.summary, /저장 코디 0개 · 보관 코디 1개/);
+  });
+
+  await check('The toast does not cover the builder save bar; the all-archived list points to 보관함; 320px header keeps the count badge on one line', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); goto('코디'); OF.newOutfit(); OF.pick('top'); OF.choose('t1'); toast('시험'); await sleep(20);
+      const bar = document.querySelector('#outfit .of-save').getBoundingClientRect(), tb = document.getElementById('appToast').getBoundingClientRect();
+      const overlap = !(tb.bottom <= bar.top || tb.top >= bar.bottom);
+      OF.clearAll(); OF.back();
+      await transaction(['outfits'], 'readwrite', tx => tx.objectStore('outfits').put({ id: 'q', name: '보관만', slots: { top: 't1' }, createdAt: 1, worn: [], archived: true })); await refresh();
+      const empty = document.querySelector('#oflBody .empty').textContent; document.querySelector('#oflBody .empty button').click(); const chip = OFL.state().chip;
+      return { overlap, empty, chip };
+    });
+    assert.equal(r.overlap, false); assert.match(r.empty, /모든 코디가 보관함에 있습니다/); assert.equal(r.chip, 'archived');
+    await page.setViewportSize({ width: 320, height: 568 });
+    const b = await page.evaluate(async () => { OFL.chip('all'); await sleep(20); const e = document.querySelector('#outfit .of-head .badge'); return { lines: e.getClientRects().length, search: document.getElementById('oflSearch').getBoundingClientRect().width }; });
+    assert.equal(b.lines, 1); assert.ok(b.search >= 120, `search ${b.search}px`);
+  });
+
+  await check('Renaming the linked outfit or clearing the name field keeps the draft "clean": deleting that outfit leaves no phantom draft; a newer favourite time survives merges in any order', async page => {
+    await page.evaluate(MERGE_HELPERS);
+    const r = await page.evaluate(async () => {
+      await basic(); window.prompt = () => '일요일'; goto('코디');
+      OF.newOutfit(); OF.pick('top'); OF.choose('t1'); OF.pick('bottom'); OF.choose('b1'); OF.name('토요일'); OF.save(); await sleep(400);
+      const [o] = await outfitsDB(); OF.rename(o.id); await sleep(300);
+      const renamed = { hasDraft: OF.hasDraft(), name: JSON.parse(localStorage.getItem('wardrobe.outfitDraft')).name };
+      OF.del(o.id); await sleep(400); const afterRenameDelete = { banner: !!document.querySelector('#outfit .of-resume'), hasDraft: OF.hasDraft() };
+      await transaction(['outfits'], 'readwrite', tx => tx.objectStore('outfits').put({ id: 'A', name: '출근룩', slots: { top: 't1', bottom: 'b1' }, createdAt: 1, worn: [] })); await refresh();
+      OF.load('A'); OF.name(''); OF.back(); OF.del('A'); await sleep(400); const afterBlankDelete = { banner: !!document.querySelector('#outfit .of-resume'), hasDraft: OF.hasDraft() };
+      // 별표 시각: 폰(5000 별표) ← PC(이름 6000, 별표 3000) ← 탭(별표 끔 4000)을 PC 먼저 합쳐도 별표가 남는다
+      const img = await jpeg('#567'); await seed([{ id: 'x', category: '상의', memo: 'X', image: img }]);
+      await transaction(['outfits'], 'readwrite', tx => { const st = tx.objectStore('outfits'); st.clear(); st.put({ id: 'X', name: 'X', slots: { top: 'x' }, createdAt: 1, updatedAt: 1000, worn: [], fav: true, favAt: 5000 }); }); await refresh();
+      const cl = [{ id: 'x', category: '상의', memo: 'X', blob: img }];
+      await mergeBackup(await mkFile(cl, [{ id: 'X', name: 'PC 이름', slots: { top: 'x' }, createdAt: 1, updatedAt: 6000, worn: [], fav: true, favAt: 3000 }])); await sleep(100);
+      const mid = (await outfitsDB())[0];
+      await mergeBackup(await mkFile(cl, [{ id: 'X', name: 'X', slots: { top: 'x' }, createdAt: 1, updatedAt: 1000, worn: [], fav: false, favAt: 4000 }])); await sleep(100);
+      const end = (await outfitsDB())[0];
+      return { renamed, afterRenameDelete, afterBlankDelete, mid: [mid.name, mid.fav, mid.favAt], end: [end.name, end.fav, end.favAt] };
+    });
+    assert.deepEqual(r.renamed, { hasDraft: false, name: '일요일' });
+    assert.deepEqual(r.afterRenameDelete, { banner: false, hasDraft: false }); assert.deepEqual(r.afterBlankDelete, { banner: false, hasDraft: false });
+    assert.deepEqual(r.mid, ['PC 이름', true, 5000]); assert.deepEqual(r.end, ['PC 이름', true, 5000]);
   });
 
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {
