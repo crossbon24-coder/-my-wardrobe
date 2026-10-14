@@ -32,7 +32,7 @@ async function fresh(opts = {}) {
   await page.evaluate(() => {
     window.alerts = []; window.alert = t => alerts.push(String(t)); window.confirm = () => true; window.promptAnswer = null; window.prompt = () => window.promptAnswer;
     window.sleep = ms => new Promise(r => setTimeout(r, ms));
-    window.goto = name => [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === name).click();
+    window.goto = name => { if (name === '옷 등록') return goAdd(); const label = { '코디 추천': '추천' }[name] || name; [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === label).click(); }; // v5.0 탭: 옷장·코디·추천·더보기
     window.seed = async specs => { // [{id,category,memo,color,type,brand}]
       const rows = [];
       for (const [i, s] of specs.entries()) {
@@ -185,7 +185,7 @@ async function check(name, fn) {
   });
 
   await check('4-column mode keeps a one-line name on each card', async page => {
-    const r = await page.evaluate(async () => { await basic(); document.getElementById('densityBtn').click(); await sleep(50); const t = document.querySelector('#items .item .title'); return { dense: document.getElementById('items').classList.contains('dense'), titleVisible: getComputedStyle(t).display !== 'none', actionsHidden: getComputedStyle(document.querySelector('#items .item .actions')).display === 'none' }; });
+    const r = await page.evaluate(async () => { await basic(); document.getElementById('densityBtn').click(); await sleep(50); const t = document.querySelector('#items .item .title'); return { dense: document.getElementById('items').classList.contains('dense'), titleVisible: getComputedStyle(t).display !== 'none', actionsHidden: getComputedStyle(document.querySelector('#items .item .meta')).display === 'none' }; }); // v5.0: 카드 버튼 없음, 4열에서는 이름만
     assert.deepEqual(r, { dense: true, titleVisible: true, actionsHidden: true });
   });
 
@@ -209,7 +209,7 @@ async function check(name, fn) {
     await page.reload();
     await page.waitForFunction(() => /옷 8벌/.test(document.getElementById('summary').textContent) && window.OF);
     const r = await page.evaluate(async () => {
-      window.goto = name => [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === name).click();
+      window.goto = name => { if (name === '옷 등록') return goAdd(); const label = { '코디 추천': '추천' }[name] || name; [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === label).click(); }; // v5.0 탭: 옷장·코디·추천·더보기
       goto('코디'); await new Promise(r => setTimeout(r, 50)); OF.builder(); // v4.11: 앱을 다시 열면 목록에서 시작하고 '이어서 만들기'로 초안을 연다
       const kept = { name: document.getElementById('outfitName').value, imgs: document.querySelectorAll('#outfit .card .fl-tile img').length };
       await transaction(['clothes'], 'readwrite', tx => tx.objectStore('clothes').delete('t1')); await refresh(); await new Promise(r => setTimeout(r, 50));
