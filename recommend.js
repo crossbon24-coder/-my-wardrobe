@@ -20,10 +20,23 @@ function itemScore(c,t,w){return 5-Math.abs(formalityLevel(c.formality)-t)*2+typ
 let REC_JITTER=0.15,REC_SEED=null;const ACC_BAND=3,ACC_FIT=3,PAIR_FIT=2,PEN_CAP=1.5; // 신발·아우터·가방 후보 범위. 실데이터 263벌 시뮬레이션: 2점은 더운 주말에 샌들 2켤레만 돌았고, 4점은 주말에 구두가 끼었다
 function recJitter(id){if(!REC_JITTER)return 0;const seed=REC_SEED??Number(recDay().replace(/-/g,''));let h=2166136261^seed;for(const ch of String(id))h=Math.imul(h^ch.charCodeAt(0),16777619);return ((h>>>0)%1000)/1000*REC_JITTER}
 // opts.pen: 지난날 본 것의 감점(recOpts), opts.novelty: 마지막 한 조합을 덜 입고 덜 본 옷으로('새로운 시도')
+// opts.pin: {slot,id} 이 옷을 모든 조합에 넣는다('이 옷으로 추천'). 칸은 outer·top·bottom·shoes·bag. 고정한 아우터·가방은 날씨·목적과 상관없이 넣는다
+const PIN_CAT={outer:'아우터',top:'상의',bottom:'하의',shoes:'신발',bag:'가방'},PIN_SLOT_OF={'아우터':'outer','상의':'top','하의':'bottom','신발':'shoes','가방':'bag'};
+// 고정 추천의 목적·날씨: 나머지 옷을 고정한 옷에 맞춘다. 포멀 옷을 고정하면 출근 수준의 격식으로, 캐주얼 옷을 고정하면 출근도 주말 수준으로 본다
+// (데이트 수준으로만 맞췄더니 구두·포멀 가방 고정 + 더운 주말에 반바지가 붙었다). 아우터·가방을 넣을지는 고른 목적(opts.purpose)대로.
+// 고정한 옷이 고른 날씨에 맞지 않으면(더운 날 겨울 패딩 등) 그 옷의 계절에 맞는 날씨로 고르고 note로 알린다
+function pinContext(item,t,w){
+  const lv=formalityLevel(item.formality),tEff=lv===3?3:t===3?1:t;
+  let wEff=w,note='';
+  if(weatherScore(item,w)<=0){wEff=item.season==='겨울'?'cold':item.season==='여름'?'hot':'normal';note=`고정한 옷(${item.season})에 맞춰 날씨를 '${{cold:'추운 날',hot:'더운 날',normal:'보통 날씨'}[wEff]}'로 보고 골랐습니다.`}
+  return {t:tEff,w:wEff,note};
+}
 function recommendCombos(t,w,seen=new Set(),count=3,avoid={},opts={}){
   const pen=opts.pen||null;
   const act=clothes.filter(c=>!c.archived),by=cat=>act.filter(c=>c.category===cat);
-  const Tp=by('상의'),Bp=by('하의'),Sp=by('신발'),Op=by('아우터'),Gp=by('가방');
+  const pinItem=opts.pin&&PIN_CAT[opts.pin.slot]?act.find(c=>c.id===opts.pin.id&&c.category===PIN_CAT[opts.pin.slot]):null,pin=pinItem?opts.pin.slot:'';
+  const only=(slot,list)=>pin===slot?[pinItem]:list;
+  const Tp=only('top',by('상의')),Bp=only('bottom',by('하의')),Sp=only('shoes',by('신발')),Op=only('outer',by('아우터')),Gp=only('bag',by('가방'));
   if(!Tp.length||!Bp.length)return [];
   // S: 감점 전 점수(격식·날씨·종류·착용일 + 날짜 흔들기). 지난날 본 감점(pen)은 따로 빼고 상한을 둔다:
   // 상의·하의 조합은 조합+옷 감점 합 PEN_CAP(1.5)점까지, 신발·아우터·가방은 1점까지. 조합 격식 맞춤(PAIR_FIT 2점)을 감점이 뒤집지 못한다
@@ -47,19 +60,26 @@ function recommendCombos(t,w,seen=new Set(),count=3,avoid={},opts={}){
     pool.sort((a,b)=>b.v-a.v||a.l-b.l);return {item:pool[0].x,score:pool[0].v};
   };
   const shoeFor=new Map(Bp.map(b=>[b,bestFor(Sp,[b],null,null,null,true)])),pairs=[];
-  Tp.forEach((a,ia)=>Bp.forEach((b,ib)=>{const sh=shoeFor.get(b),raw=S(a)+S(b)+colorScore(a.color,b.color)+fitScore(a,b)*PAIR_FIT+(sh?sh.score:0),cut=pen?Math.min(PEN_CAP,pen.pair(a.id+'|'+b.id)+PI(a)+PI(b)):0;
+  // 고정한 옷과 상의·하의를 맞춘다: 격식이 다르면 ACC_FIT(3)점씩 깎고 색 궁합을 더한다(조합 격식 PAIR_FIT만으로는 포멀 셔츠 고정 + 더운 주말에 슬랙스와 반바지가 동점이었다)
+  const pinRef=pinItem?x=>x===pinItem?0:fitScore(x,pinItem)*ACC_FIT+colorScore(x.color,pinItem.color)/2:()=>0;
+  Tp.forEach((a,ia)=>Bp.forEach((b,ib)=>{const sh=shoeFor.get(b),raw=S(a)+S(b)+colorScore(a.color,b.color)+fitScore(a,b)*PAIR_FIT+(sh?sh.score:0)+pinRef(a)+pinRef(b),cut=pen?Math.min(PEN_CAP,pen.pair(a.id+'|'+b.id)+PI(a)+PI(b)):0;
     pairs.push({a,b,ia,ib,sh:sh&&sh.item,raw,score:raw-cut,worn:(a.lastWorn||0)+(b.lastWorn||0)})}));
   pairs.sort((x,y)=>y.score-x.score||x.worn-y.worn||x.ia-y.ia||x.ib-y.ib);
-  const needOuter=w==='cold'||(t>=3&&w!=='hot'),wantBag=t>=3,out=[],usedT=new Set(),usedB=new Set(),usedI=new Set();
+  const tp=opts.purpose??t,needOuter=pin==='outer'||w==='cold'||(tp>=3&&w!=='hot'),wantBag=pin==='bag'||tp>=3,out=[],usedT=new Set(),usedB=new Set(),usedI=new Set();
   const take=(p,kind)=>{
     const key=p.a.id+'|'+p.b.id;usedT.add(p.a.id);usedB.add(p.b.id);
     const o=needOuter&&Op.length?bestFor(Op,[p.a],avI,usedI,w==='cold'?x=>weatherScore(x,w):undefined):null,sh=Sp.length?bestFor(Sp,[p.b,p.a],avI,usedI):null,g=wantBag&&Gp.length?bestFor(Gp,[p.b],avI,usedI):null;
     for(const x of [o,sh,g])if(x)usedI.add(x.item.id);
     out.push({key,score:p.score,kind:kind||'',slots:{outer:o?o.item.id:null,top:p.a.id,bottom:p.b.id,shoes:sh?sh.item.id:null,bag:g?g.item.id:null}});
   };
-  const free=(p,strict)=>{const key=p.a.id+'|'+p.b.id;return !seen.has(key)&&!usedT.has(p.a.id)&&!usedB.has(p.b.id)&&!(strict&&(avT.has(p.a.id)||avB.has(p.b.id)))};
-  const fill=n=>{for(const strict of [true,false]){for(const p of pairs){if(out.length>=n)return;if(free(p,strict))take(p)}}};
-  const main=opts.novelty&&count>=3?count-1:count;
+  // 고정한 상의·하의는 화면 안에서 겹쳐도 되고(모든 조합에 들어가야 하므로) 앞에서 보여 준 목록으로도 건너뛰지 않는다
+  const pT=pin==='top',pB=pin==='bottom';
+  const free=(p,strict)=>{const key=p.a.id+'|'+p.b.id;return !seen.has(key)&&(pT||!usedT.has(p.a.id))&&(pB||!usedB.has(p.b.id))&&!(strict&&((!pT&&avT.has(p.a.id))||(!pB&&avB.has(p.b.id))))};
+  // 정반대 계절 옷(더운 날 겨울 옷, 추운 날 여름 옷, 날씨 점수 -8)이 든 조합은 그런 옷만 있을 때 쓴다. 옷이 적으면 세 번째 조합을 채우려고
+  // 추운 날 반바지를 넣었다. 그 대신 조합이 세 개보다 적게 나올 수 있다(고정한 옷은 pinContext가 날씨를 맞추므로 여기 걸리지 않는다)
+  const harsh=x=>x!==pinItem&&weatherScore(x,w)<=-8,mild=pairs.some(p=>!harsh(p.a)&&!harsh(p.b));
+  const fill=n=>{for(const strict of [true,false]){for(const p of pairs){if(out.length>=n)return;if(free(p,strict)&&!(mild&&(harsh(p.a)||harsh(p.b))))take(p)}}};
+  const main=opts.novelty&&!pin&&count>=3?count-1:count;
   fill(main);
   // 새로운 시도: 감점 전 1등에서 NOVEL_BAND점 안의 조합 중, 최근에 덜 입고 덜 본 옷으로. 계절이 안 맞는 옷(날씨 점수 0 이하), 데이트·출근의 운동복 종류,
   // 출근의 캐주얼 옷, 상의·하의 격식이 다른 조합은 뺀다(감점 후 점수로 범위를 잡았더니 며칠 뒤 출근에 티셔츠·쇼츠·샌들, 보통 날씨에 여름 옷이 나왔다).

@@ -168,7 +168,8 @@
   function renderPickGrid(){
     const box=$('pickGrid');if(!box)return;
     const list=pickCandidates(),cnt=$('pickCount');if(cnt)cnt.textContent=`${list.length}벌`;
-    box.innerHTML=list.length?`<div class="pgrid">${list.map(c=>`<button type="button" class="pitem${draft[pickSlot]===c.id?' sel':''}" onclick="OF.choose(${arg(c.id)})"><img src="${url(c.image)}" alt="" loading="lazy" decoding="async" draggable="false"><span>${esc(title(c))}</span></button>`).join('')}</div>`
+    const ofN=typeof outfitCountMap==='function'?outfitCountMap():new Map();
+    box.innerHTML=list.length?`<div class="pgrid">${list.map(c=>`<button type="button" class="pitem${draft[pickSlot]===c.id?' sel':''}" onclick="OF.choose(${arg(c.id)})"><img src="${url(c.image)}" alt="" loading="lazy" decoding="async" draggable="false"><span>${esc(title(c))}</span>${ofN.get(c.id)?`<b class="pcount">코디 ${ofN.get(c.id)}</b>`:''}</button>`).join('')}</div>`
       :`<p class="small" style="padding:14px 0">조건에 맞는 옷이 없습니다.${pickAll?'':' 위의 \'전체 분류\'를 누르면 모든 옷에서 고를 수 있습니다.'}</p>`;
   }
   function renderPick(){
@@ -198,8 +199,9 @@
   const appBusy=()=>typeof mutationBusy!=='undefined'&&mutationBusy;
   async function locked(fn){if(appBusy()){say('저장·백업이 끝난 뒤 다시 눌러주세요');return}mutationBusy=true;try{return await fn()}finally{mutationBusy=false}}
   // 코디만 바뀐 경우: 옷 전체를 다시 읽지 않고 outfits만 읽어 코디 화면과 개수만 갱신한다
+  let closetDirty=false;
   async function refreshOutfits(){
-    outfits=await all('outfits');
+    outfits=await all('outfits');closetDirty=true; // 옷장 카드의 '코디 n'
     if(typeof invalidateBackupShare==='function')invalidateBackupShare();
     if(typeof renderCounts==='function')renderCounts();else{const sv=$('saved');if(sv)sv.textContent=outfits.length}
     refreshOutfitView();
@@ -215,6 +217,8 @@
     if(!Object.values(slots).some(Boolean))return say('옷을 먼저 골라주세요');
     const target=!asNew&&editId?outfits.find(o=>o.id===editId):null;
     const name=draftName.trim()||(target?norm(target).name:defaultName());
+    if(target){const n=norm(target),changed=Object.keys(EMPTY).some(k=>(n.slots[k]||null)!==(slots[k]||null));
+      if(changed&&n.worn.length&&!confirm(`이 코디는 ${n.worn.length}번 입은 기록이 있습니다. 칸을 바꿔 덮어쓰면 그 기록이 새로 넣은 옷의 기록이 됩니다. 덮어쓸까요?\n기록을 지키려면 취소하고 '새로 저장'을 누르세요.`))return;}
     saving=true;refreshOutfitView();
     try{
       let savedId=target?target.id:null,overwrote=false;
@@ -316,7 +320,8 @@
     const save=$('editSaveBtn');if(!save||$('ofAddBtn'))return;
     const row=save.parentNode,b=document.createElement('button');
     b.id='ofAddBtn';b.type='button';b.className='secondary';b.textContent='코디에 담기';b.onclick=addToOutfit;
-    const wrap=document.createElement('div');wrap.className='actions';wrap.appendChild(b);
+    const rb=document.createElement('button');rb.id='ofRecBtn';rb.type='button';rb.className='secondary';rb.textContent='이 옷으로 추천';rb.onclick=()=>recWith();
+    const wrap=document.createElement('div');wrap.className='actions';wrap.appendChild(b);wrap.appendChild(rb);
     row.parentNode.insertBefore(wrap,row);
   }
 
@@ -374,7 +379,7 @@
 .fl-x{position:absolute;top:0;right:0;width:40px;height:40px;padding:0;background:transparent;border-radius:0}
 .fl-x i{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:#171717;color:#fff;font-size:15px;line-height:22px;font-style:normal;text-align:center}
 .fl.small{gap:4px;max-width:150px}.fl.small .fl-row{gap:4px}.fl.small .fl-tile{border-radius:8px;font-size:10px}.fl.small .fl-row.n3 .fl-tile{max-width:calc(33.333% - 3px)}
-.of-item{display:flex;gap:10px;background:#f7f7f7;border-radius:15px;padding:9px;margin-top:8px}.of-builder>summary{cursor:pointer;padding:2px 0;font-size:16px}.of-builder[open]>summary{margin-bottom:8px}.of-related{margin:8px 0;background:#f7f7f7;border-radius:12px;padding:8px 10px}.of-related>summary{cursor:pointer;font-weight:700;font-size:14px}.of-rel-strip{display:flex;gap:8px;overflow-x:auto;padding:8px 0 2px;-webkit-overflow-scrolling:touch}.of-rel{flex:none;width:118px;background:#fff;border:1px solid #eee;border-radius:12px;padding:6px;color:#222;text-align:left;font-weight:400}.of-rel .of-thumb{width:100%}.of-flash{outline:3px solid #f59e0b;outline-offset:2px;transition:outline-color .4s}
+.of-item{display:flex;gap:10px;background:#f7f7f7;border-radius:15px;padding:9px;margin-top:8px}.of-builder>summary{cursor:pointer;padding:2px 0;font-size:16px}.of-builder[open]>summary{margin-bottom:8px}.of-related{margin:8px 0;background:#f7f7f7;border-radius:12px;padding:8px 10px}.of-related>summary{cursor:pointer;font-weight:700;font-size:14px}.of-rel-strip{display:flex;gap:8px;overflow-x:auto;padding:8px 0 2px;-webkit-overflow-scrolling:touch}.of-rel{flex:none;width:118px;background:#fff;border:1px solid #eee;border-radius:12px;padding:6px;color:#222;text-align:left;font-weight:400}.of-rel .of-thumb{width:100%}.of-flash{outline:3px solid #f59e0b;outline-offset:2px;transition:outline-color .4s}.of-rel-more p{margin:8px 0 0}.of-co{display:flex;gap:8px;overflow-x:auto;padding:2px 0}.of-co-item{flex:none;width:72px;font-size:11px;color:#555}.of-co-item img{width:72px;height:72px;object-fit:cover;border-radius:10px;display:block;background:#eee}.pitem{position:relative}.pitem .pcount{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.62);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px}
 .of-item.done{opacity:.45}
 .of-thumb{width:150px;flex:none}.of-info{min-width:0;flex:1;display:flex;flex-direction:column}.of-info .actions{margin-top:auto;flex-wrap:wrap}.of-info .actions button{flex:1 1 auto;white-space:nowrap;padding:8px 6px;min-height:40px}
 .of-more{width:100%;margin-top:10px}
@@ -425,16 +430,46 @@
   function installRelated(){
     const img=$('editImg');if(!img||$('ofRelated'))return;
     const d=document.createElement('details');d.id='ofRelated';d.className='of-related';d.hidden=true;
-    d.innerHTML='<summary></summary><div class="of-rel-strip"></div>';
+    d.innerHTML='<summary onclick="OF.relatedToggle(!this.parentNode.open)"></summary><div class="of-rel-strip"></div><div class="of-rel-more"></div>';
     const anchor=$('editPartial')||img;anchor.parentNode.insertBefore(d,anchor.nextSibling);
+    const sel=$('editCategory');if(sel)sel.addEventListener('change',()=>syncRecBtn());
   }
   function relatedOf(id){return outfits.map(norm).filter(o=>Object.values(o.slots).some(v=>v===id)).sort((a,b)=>lastWorn(b)>lastWorn(a)?1:lastWorn(b)<lastWorn(a)?-1:(b.createdAt||0)-(a.createdAt||0))}
+  // 이 옷을 입은 날: 이 옷이 든 코디의 착용 날짜(코디 탭 '오늘 입음'·캘린더 기록). 옷장 카드 '오늘 입음'은 날짜 목록이 없어 넣지 않는다
+  function wornDaysOf(id,list){const days=new Set();for(const o of list)for(const d of o.worn)days.add(d);return [...days].sort().reverse()}
+  // 자주 함께 입은 옷: 입은 기록이 있는 코디의 다른 칸 옷을 입은 횟수만큼 센다. 입은 코디가 없으면 '같은 코디에 든 옷'(안 입은 코디 기준)
+  function coWornOf(id,list){
+    const worn=list.filter(o=>o.worn.length),src=worn.length?worn:list,m=new Map();
+    for(const o of src){const wgt=Math.max(1,o.worn.length);for(const v of new Set(Object.values(o.slots)))if(v&&v!==id){const c=byId(v);if(c&&!c.archived)m.set(v,(m.get(v)||0)+wgt)}}
+    return {worn:worn.length>0,items:[...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,4).map(([v])=>byId(v))};
+  }
+  let relatedPref=null;
   function renderRelated(){
     const d=$('ofRelated');if(!d)return;
-    const id=typeof editingId!=='undefined'?editingId:null,list=id===null?[]:relatedOf(id);
-    d.hidden=!list.length;d.open=false;if(!list.length){d.querySelector('.of-rel-strip').innerHTML='';return}
-    d.querySelector('summary').textContent=`이 옷이 든 코디 ${list.length}개`;
+    const id=typeof editingId!=='undefined'?editingId:null,c=id===null?null:byId(id),list=c?relatedOf(id):[],days=c?wornDaysOf(id,list):[];
+    syncRecBtn(); // '이 옷으로 추천'은 액세서리·보관한 옷, 분류를 바꾸고 저장하기 전에는 없음
+    d.hidden=!list.length;
+    if(d.hidden){d.querySelector('.of-rel-strip').innerHTML='';d.querySelector('.of-rel-more').innerHTML='';return}
+    d.open=relatedPref===true;
+    d.querySelector('summary').textContent=`이 옷이 든 코디 ${list.length}개${days.length?` · 입은 날 ${days.length}일`:''}`;
     d.querySelector('.of-rel-strip').innerHTML=list.map(o=>`<button type="button" class="of-rel" onclick="OF.showOutfit(${arg(o.id)})"><div class="of-thumb">${flatLayHTML(o.slots,{small:true})}</div><span class="small">${esc(o.name)}${o.worn.length?` · ${o.worn.length}회`:''}</span></button>`).join('');
+    const co=coWornOf(id,list),yr=today().slice(0,4),md=s=>`${s.slice(0,4)===yr?'':s.slice(2,4)+'/'}${Number(s.slice(5,7))}/${Number(s.slice(8))}`;
+    d.querySelector('.of-rel-more').innerHTML=(days.length?`<p class="small"><b>입은 날</b> ${days.slice(0,8).map(md).join(', ')}${days.length>8?` 외 ${days.length-8}일`:''} <span class="muted">(코디 기록)</span></p>`:'')
+      +(co.items.length?`<p class="small" style="margin-bottom:4px"><b>${co.worn?'자주 함께 입은 옷':'같은 코디에 든 옷'}</b></p><div class="of-co">${co.items.map(x=>`<div class="of-co-item"><img src="${url(x.image)}" alt="" loading="lazy" decoding="async"><span>${esc(title(x))}</span></div>`).join('')}</div>`:'');
+  }
+  function syncRecBtn(){const b=$('ofRecBtn');if(!b)return;const id=typeof editingId!=='undefined'?editingId:null,c=id===null?null:byId(id),sel=$('editCategory');b.hidden=!c||c.archived||!PIN_SLOT[c.category]||(sel&&sel.value&&sel.value!==c.category)}
+  // '이 옷으로 추천': 이 옷을 고정하고 코디 추천 탭에서 나머지를 추천
+  const PIN_SLOT={'아우터':'outer','상의':'top','하의':'bottom','신발':'shoes','가방':'bag'};
+  function recWith(){
+    const id=typeof editingId!=='undefined'?editingId:null,c=byId(id);if(!c)return;
+    const slot=PIN_SLOT[c.category];if(!slot)return say('액세서리는 고정 추천을 하지 않습니다');if(c.archived)return say('보관한 옷은 추천에 쓰지 않습니다');
+    if(typeof recommend!=='function'||typeof setRecPin!=='function')return say('추천 기능 파일을 불러오지 못했습니다. 강제 새로고침 후 다시 시도해주세요');
+    const dirty=typeof editDirty==='function'?editDirty():editFormDirty(c);
+    if(dirty&&!confirm('바꾼 사진과 수정 내용은 저장되지 않습니다. 저장하지 않고 추천을 볼까요?'))return;
+    if(typeof closeEdit==='function'&&closeEdit()===false)return;
+    setRecPin(slot,c.id);
+    const btn=[...document.querySelectorAll('nav button')].find(b=>(b.getAttribute('onclick')||'').includes("'recommend'"));if(btn)showPage('recommend',btn);
+    recommend();window.scrollTo(0,0);
   }
   function showOutfit(id){
     const c=typeof editingId!=='undefined'?byId(editingId):null;
@@ -476,6 +511,8 @@
     closeWorn(){addWornFor=null;$('wornModal').classList.remove('open')},
     addToOutfit,
     showOutfit,
+    recWith,
+    relatedToggle(v){relatedPref=v;try{localStorage.setItem('wardrobe.relatedOpen',v?'1':'0')}catch{}},
     builderToggle(v){builderPref=v;builderAct=false;try{localStorage.setItem(BUILDER_KEY,v?'1':'0')}catch{}},
     editState(){return editId?{id:editId,clean:!OF.hasDraft()}:null},
     // 합치기 뒤: 고치던 코디가 바뀌었으면, 초안이 저장본 그대로였으면 새 내용으로 다시 채우고, 고치던 중이었으면 새 코디로 떼어 둔다
@@ -489,18 +526,18 @@
   };
 
   function init(){
-    try{dense=localStorage.getItem('wardrobe.dense')==='1';closetSort=localStorage.getItem('wardrobe.closetSort')||'recent';const bp=localStorage.getItem(BUILDER_KEY);builderPref=bp===null?null:bp==='1'}catch{}
+    try{dense=localStorage.getItem('wardrobe.dense')==='1';closetSort=localStorage.getItem('wardrobe.closetSort')||'recent';const bp=localStorage.getItem(BUILDER_KEY);builderPref=bp===null?null:bp==='1';relatedPref=localStorage.getItem('wardrobe.relatedOpen')==='1'}catch{}
     injectCSS();ensureDOM();installClosetTools();installEditButton();installRelated();restoreDraft();
     const baseOpenEdit=window.openEdit;if(typeof baseOpenEdit==='function')window.openEdit=function(){baseOpenEdit.apply(this,arguments);safe(renderRelated,'이 옷이 든 코디')};
     const baseRender=window.render;
     window.render=function(){
-      baseRender.apply(this,arguments);
+      closetDirty=false;baseRender.apply(this,arguments);
       safe(applyClosetTools,'옷장 검색');
       if(outfitVisible())safe(renderOutfitPage,'코디 화면');else outfitDirty=true; // 숨겨진 코디 화면은 보일 때 그린다
       if(pickSlot&&$('pickModal').classList.contains('open'))safe(renderPickGrid,'옷 고르기');
     };
     const baseShow=window.showPage;
-    window.showPage=function(id){baseShow.apply(this,arguments);if(id==='outfit'&&outfitDirty)safe(renderOutfitPage,'코디 화면')};
+    window.showPage=function(id){baseShow.apply(this,arguments);if(id==='outfit'&&outfitDirty)safe(renderOutfitPage,'코디 화면');if(id==='closet'&&closetDirty)render()};
     // 뒤로 가기 캐시에서 돌아오면 index.html이 URL을 모두 해제했으므로 열린 시트를 다시 그린다
     window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(pickSlot)safe(renderPick,'옷 고르기');if(addWornFor)safe(renderWornPick,'코디 고르기')});
     // 앱을 켜 둔 채 날짜·달이 바뀌면 '오늘'과 달력을 맞춘다(사용자가 다른 달로 옮겨 둔 경우는 그대로)
