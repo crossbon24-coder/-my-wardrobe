@@ -39,7 +39,7 @@ async function fresh(opts = {}) {
     window.confirmQueue = []; window.onConfirm = null;
     window.alert = t => alerts.push(String(t)); window.confirm = t => { confirms.push(String(t)); if (window.onConfirm) window.onConfirm(String(t)); return window.confirmQueue.length ? window.confirmQueue.shift() : window.confirmAnswer; };
     window.sleep = ms => new Promise(r => setTimeout(r, ms));
-    window.goto = name => [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === name).click();
+    window.goto = name => { if (name === '옷 등록') return goAdd(); const label = { '코디 추천': '추천' }[name] || name; [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === label).click(); }; // v5.0 탭: 옷장·코디·추천·더보기
     window.jpeg = async (color, size = 64) => { const c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d'); x.fillStyle = color; x.fillRect(0, 0, size, size); x.fillStyle = '#fff'; x.fillRect(size / 4, size / 4, size / 2, size / 2); return new Promise(r => c.toBlob(r, 'image/jpeg', .8)); };
     window.seed = async specs => {
       const rows = [];
@@ -128,15 +128,15 @@ async function check(name, fn, opts) {
     assert.deepEqual(r, { closedClean: true, asked0: 0, stayed: true, closed: true, memo: '화이트 셔츠' });
   });
 
-  await check("Closet-card 오늘 입음: once per day, undo restores the previous count and date, card shows 입음 ✓", async page => {
+  await check("오늘 입음 (now in the garment window): once per day, undo restores the previous count and date, the button and card show ✓", async page => {
     const r = await page.evaluate(async () => {
       await seed([{ id: 'x', category: '상의', memo: '셔츠', wearCount: 2, lastWorn: 1000 }]);
-      await wear('x'); const first = (await clothesDB())[0].wearCount, label = document.querySelector('#items .item .actions button:last-child').textContent;
+      openEdit('x'); document.getElementById('ofWearBtn').click(); await sleep(300); const first = (await clothesDB())[0].wearCount, label = document.getElementById('ofWearBtn').textContent, card = document.querySelector('#items .item .meta').textContent + (document.querySelector('#items .item .today') ? ' +오늘' : ''); closeEdit();
       document.querySelector('#appToast button').click(); await sleep(300); const undone = (await clothesDB())[0];
       await wear('x'); await wear('x'); const twice = (await clothesDB())[0].wearCount, dupToast = toastText();
-      return { first, label, undoneCount: undone.wearCount, undoneLast: undone.lastWorn, twice, dupToast };
+      return { first, label, card, undoneCount: undone.wearCount, undoneLast: undone.lastWorn, twice, dupToast };
     });
-    assert.deepEqual(r, { first: 3, label: '입음 ✓', undoneCount: 2, undoneLast: 1000, twice: 3, dupToast: '오늘은 이미 기록되어 있습니다' });
+    assert.deepEqual(r, { first: 3, label: '오늘 입음 ✓', card: '착용 3회 +오늘', undoneCount: 2, undoneLast: 1000, twice: 3, dupToast: '오늘은 이미 기록되어 있습니다' });
   });
 
   await check('Update/reload asks before discarding the registration list or edits', async page => {
@@ -375,12 +375,12 @@ async function check(name, fn, opts) {
     assert.deepEqual(r, { sameSize: true, newObject: true, newBytes: true });
   });
 
-  await check('Coming back to the app on a new day redraws 입음 ✓ back to 오늘 입음', async page => {
+  await check('Coming back to the app on a new day redraws the card "오늘 ✓" away', async page => {
     await page.evaluate(async () => { await seed([{ id: 'x', category: '상의', memo: '셔츠' }]); await wear('x'); });
-    const before = await page.evaluate(() => document.querySelector('#items .item .actions button:last-child').textContent);
+    const before = await page.evaluate(() => !!document.querySelector('#items .item .today'));
     await page.clock.setFixedTime(new Date(Date.now() + 86400000 + 3600000));
-    const after = await page.evaluate(async () => { document.dispatchEvent(new Event('visibilitychange')); await sleep(50); return document.querySelector('#items .item .actions button:last-child').textContent; });
-    assert.deepEqual([before, after], ['입음 ✓', '오늘 입음']);
+    const after = await page.evaluate(async () => { document.dispatchEvent(new Event('visibilitychange')); await sleep(50); return !!document.querySelector('#items .item .today'); });
+    assert.deepEqual([before, after], [true, false]);
   });
 
   await check('Recommend: 3 combos with distinct tops and bottoms; outer when cold or formal, bag when formal, none when hot; 다른 추천 moves on', async page => {
@@ -445,12 +445,12 @@ async function check(name, fn, opts) {
     assert.deepEqual(r, { edit: true, wear: true, outfit: true, unchangedSave: true, untouched: true });
   });
 
-  await check('Registration tab: big photo button first, shop import folded, backup in its own card, diagnostics hidden without ?debug=1', async page => {
+  await check('Registration screen: big photo button first, shop import folded, backup moved to 더보기, diagnostics hidden without ?debug=1', async page => {
     const r = await page.evaluate(async () => {
       const cards = [...document.querySelectorAll('#add > .card, #add > details.card')];
       visionModel = null; modelPromise = null; scriptLoads.clear(); delete window.tf; delete window.mobilenet;
       await $('photo').onchange({ target: { files: [new File([await jpeg('#123')], 'a.jpg', { type: 'image/jpeg' })], value: '' } });
-      return { firstHasPhoto: !!cards[0].querySelector('#photo') && !!cards[0].querySelector('label.bigbtn[for=photo]'), second: cards[1].tagName + ':' + cards[1].open, backupSeparate: !!cards[2].querySelector('#backupBox') && !cards[0].querySelector('#backupBox'), diagHidden: document.getElementById('diagnosticBtn').hidden, saveText: document.getElementById('batchBtn').textContent, folded: !document.querySelector('#queue details').open };
+      return { firstHasPhoto: !!cards[0].querySelector('#photo') && !!cards[0].querySelector('label.bigbtn[for=photo]'), second: cards[1].tagName + ':' + cards[1].open, backupSeparate: cards.length === 2 && !!document.querySelector('#more #backupBox'), diagHidden: document.getElementById('diagnosticBtn').hidden, saveText: document.getElementById('batchBtn').textContent, folded: !document.querySelector('#queue details').open };
     });
     assert.deepEqual(r, { firstHasPhoto: true, second: 'DETAILS:false', backupSeparate: true, diagHidden: true, saveText: '모두 저장 (1)', folded: true });
   });
@@ -1671,6 +1671,77 @@ async function check(name, fn, opts) {
     assert.deepEqual(r.renamed, { hasDraft: false, name: '일요일' });
     assert.deepEqual(r.afterRenameDelete, { banner: false, hasDraft: false }); assert.deepEqual(r.afterBlankDelete, { banner: false, hasDraft: false });
     assert.deepEqual(r.mid, ['PC 이름', true, 5000]); assert.deepEqual(r.end, ['PC 이름', true, 5000]);
+  });
+
+  await check('v5.0 tabs: 옷장·코디·추천·더보기; stats, backup and update live in 더보기; 옷 등록 opens from the closet + button (closet tab stays lit) and goes back; the page is kept in the address so a reload returns to it', async page => {
+    const r = await page.evaluate(async () => {
+      await basic();
+      const tabs = [...document.querySelectorAll('nav button')].map(b => b.textContent.trim()), active = () => document.querySelector('.page.active').id, lit = () => document.querySelector('nav button.active').textContent.trim();
+      const closetStats = !!document.querySelector('#closet .stats'), more = { stats: !!document.querySelector('#more .stats #total'), backup: !!document.querySelector('#more #backupBox'), update: /현재 버전/.test(document.getElementById('more').textContent) };
+      const fabShown = getComputedStyle(document.getElementById('addFab')).display !== 'none';
+      document.getElementById('addFab').click(); const add = { page: active(), lit: lit(), fabHidden: !document.getElementById('addFab').getClientRects().length };
+      document.querySelector('#add .pagebar button').click(); const back = active();
+      goto('더보기'); const hash = location.hash; document.querySelector('#more .card button').click(); const fromMore = active(); goto('옷장'); const closetHash = location.hash;
+      goto('더보기'); window.confirmAnswer = false; goBackup(); const backupPage = active();
+      return { tabs, closetStats, more, fabShown, add, back, hash, fromMore, closetHash, backupPage };
+    });
+    assert.deepEqual(r.tabs, ['옷장', '코디', '추천', '더보기']); assert.equal(r.closetStats, false); assert.deepEqual(r.more, { stats: true, backup: true, update: true });
+    assert.equal(r.fabShown, true); assert.deepEqual(r.add, { page: 'add', lit: '옷장', fabHidden: true }); assert.equal(r.back, 'closet');
+    assert.equal(r.hash, '#more'); assert.equal(r.fromMore, 'add'); assert.equal(r.closetHash, ''); assert.equal(r.backupPage, 'more');
+    await page.evaluate(() => goto('추천')); await page.reload(); await page.waitForFunction(() => window.OF && /옷 \d+벌/.test(document.getElementById('summary').textContent));
+    await page.waitForFunction(() => document.querySelector('.page.active').id === 'recommend');
+    assert.equal(await page.evaluate(() => document.querySelector('nav button.active').textContent.trim()), '추천');
+  });
+
+  await check('v5.0 closet: 3 columns of photo cards (name, "착용 n회 · 코디 n", no buttons); tapping a card opens the garment window whose first row is 오늘 입음 · 코디에 담기 · 이 옷으로 추천; 안 입어 봄 and 코디 없음 chips filter, and search works inside them', async page => {
+    const r = await page.evaluate(async () => {
+      await seed([{ id: 'a', category: '상의', memo: '입은 셔츠', wearCount: 3, lastWorn: Date.now() - 864e5 * 3 }, { id: 'b', category: '상의', memo: '새 니트' }, { id: 'c', category: '하의', memo: '새 데님' }]);
+      await transaction(['outfits'], 'readwrite', tx => tx.objectStore('outfits').put({ id: 'o', name: 'o', slots: { top: 'a', bottom: 'c' }, createdAt: 1, worn: [] })); await refresh();
+      const grid = getComputedStyle(document.getElementById('items')).gridTemplateColumns.split(' ').length;
+      const card = id => [...document.querySelectorAll('#items .item')].find(e => e.querySelector('img').getAttribute('onclick') === `openEdit(${JSON.stringify(id)})`);
+      const a = { meta: card('a').querySelector('.meta').textContent, buttons: card('a').querySelectorAll('button').length };
+      card('b').querySelector('.info').click(); await sleep(20);
+      const modal = document.getElementById('editModal'), sheet = modal.querySelector('.sheet'), acts = sheet.querySelector('.of-acts');
+      const win = { open: modal.classList.contains('open'), buttons: [...acts.querySelectorAll('button')].filter(b => !b.hidden).map(b => b.textContent), afterPhoto: [...sheet.children].indexOf(acts) < [...sheet.children].indexOf(document.getElementById('editPhotoBtn').parentNode) };
+      closeEdit();
+      const chip = name => [...document.querySelectorAll('#filters .chip')].find(b => b.textContent === name).click();
+      chip('안 입어 봄'); const never = visibleCards().sort(); chip('코디 없음'); const noOutfit = visibleCards();
+      const inp = document.getElementById('closetSearch'); chip('안 입어 봄'); inp.value = '데님'; inp.dispatchEvent(new Event('input')); const searched = visibleCards(); inp.value = ''; inp.dispatchEvent(new Event('input')); chip('전체');
+      return { grid, a, win, never, noOutfit, searched };
+    });
+    assert.equal(r.grid, 3); assert.deepEqual(r.a, { meta: '착용 3회 · 코디 1', buttons: 0 });
+    assert.deepEqual(r.win, { open: true, buttons: ['오늘 입음', '코디에 담기', '이 옷으로 추천'], afterPhoto: true });
+    assert.deepEqual(r.never, ['새 니트', '새 데님']); assert.deepEqual(r.noOutfit, ['새 니트']); assert.deepEqual(r.searched, ['새 데님']);
+  });
+
+  await check('v5.0 review fixes: force reload returns to 더보기; the "오늘 ✓" photo badge is never cut off; undo toasts stay clear of the + button and the garment window row and close when leaving the page; the garment window opens at the top; cards open with the keyboard', async page => {
+    await page.evaluate(async () => {
+      await seed([{ id: 'a', category: '상의', memo: '아주 긴 이름의 스트라이프 셔츠', wearCount: 12 }, { id: 'b', category: '하의', memo: '데님' }]);
+      await transaction(['outfits'], 'readwrite', tx => tx.objectStore('outfits').put({ id: 'o', name: 'o', slots: { top: 'a', bottom: 'b' }, createdAt: 1, worn: [] })); await refresh();
+      goto('더보기');
+    });
+    await Promise.all([page.waitForNavigation(), page.evaluate(() => forceReload())]);
+    await page.waitForFunction(() => window.OF && /옷 \d+벌/.test(document.getElementById('summary').textContent));
+    await page.waitForFunction(() => document.querySelector('.page.active').id === 'more');
+    await page.evaluate(() => { window.confirms = []; window.confirm = () => true; window.sleep = ms => new Promise(r => setTimeout(r, ms)); });
+    await page.setViewportSize({ width: 320, height: 568 });
+    const r = await page.evaluate(async () => {
+      const overlap = (x, y) => !(x.right <= y.left || x.left >= y.right || x.bottom <= y.top || x.top >= y.bottom);
+      [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === '옷장').click(); await sleep(20);
+      openEdit('a'); const sheet = document.querySelector('#editModal .sheet'); sheet.scrollTop = 600;
+      document.getElementById('ofWearBtn').click(); await sleep(300);
+      const toastEl = document.getElementById('appToast'), inWindow = overlap(toastEl.getBoundingClientRect(), document.querySelector('.of-acts').getBoundingClientRect());
+      closeEdit(); await sleep(20); const onCloset = overlap(toastEl.getBoundingClientRect(), document.getElementById('addFab').getBoundingClientRect());
+      const card = [...document.querySelectorAll('#items .item')].find(e => e.textContent.includes('스트라이프')), badge = card.querySelector('.today'), br = badge && badge.getBoundingClientRect(), cr = card.getBoundingClientRect();
+      const badgeInside = !!badge && br.left >= cr.left && br.right <= cr.right && br.width > 20;
+      [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === '추천').click(); await sleep(20); const toastAfterNav = toastEl.classList.contains('show');
+      [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === '옷장').click(); await sleep(20);
+      openEdit('b'); const reopenedTop = document.querySelector('#editModal .sheet').scrollTop; closeEdit();
+      const info = [...document.querySelectorAll('#items .item .info')].find(e => e.textContent.includes('데님')); info.focus(); info.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      const byKey = { focusable: info.tabIndex === 0, opened: document.getElementById('editModal').classList.contains('open') }; closeEdit();
+      return { inWindow, onCloset, badgeInside, toastAfterNav, reopenedTop, byKey };
+    });
+    assert.deepEqual(r, { inWindow: false, onCloset: false, badgeInside: true, toastAfterNav: false, reopenedTop: 0, byKey: { focusable: true, opened: true } });
   });
 
   await check('pagehide into the back/forward cache keeps image URLs; a real unload still releases them', async page => {

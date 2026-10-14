@@ -1,4 +1,5 @@
 /* outfits.js — 코디 만들기·착용 캘린더·옷장 검색/4열·옷 창 패널 (Claude Code, v4.0~)
+   v5.0: 하단 탭 옷장·코디·추천·더보기, 옷장 3열(4열 전환), 옷 창 '오늘 입음'.
    v4.11: 코디 탭은 세 화면이다. 목록(view 'list', 모아보기는 outfit-list.js가 그림)·캘린더('cal')·만들기('builder', '+ 새 코디'·고치기·코디에 담기·추천 담기로 연다).
    index.html의 전역(clothes, outfits, db, filter, editingId, $, esc, arg, url, transaction, refresh, render, showPage, closeEdit, reportError)을
    호출만 하고 고치지 않는다. render·showPage는 감싸서 뒤에 코디 화면을 이어 그린다.
@@ -338,14 +339,19 @@
     const s=r[0].slots;fill.seen.add(r[0].key);fill.avoid.tops.add(s.top);fill.avoid.bottoms.add(s.bottom);for(const k of ['outer','shoes','bag'])if(s[k])fill.avoid.items.add(s[k]);fill.last={...EMPTY,...s};
     const lab=el=>el&&el.selectedOptions&&el.selectedOptions[0]?el.selectedOptions[0].textContent:'';say(`추천 조합을 채웠습니다(${lab(oc)} · ${lab(we)}). 다시 누르면 다른 조합입니다.`);
   }
+  // v5.0: 옷장 카드의 '오늘 입음'을 옷 창으로 옮겼다(사용자: 카드 버튼은 쓰지 않음). 버튼 줄은 사진 바로 아래(코디 띠 다음)에 둔다(예전에는 창 맨 아래 저장 줄 위)
   function installEditButton(){
     const save=$('editSaveBtn');if(!save||$('ofAddBtn'))return;
-    const row=save.parentNode,b=document.createElement('button');
+    const wb=document.createElement('button');wb.id='ofWearBtn';wb.type='button';wb.textContent='오늘 입음';wb.onclick=()=>{const id=typeof editingId!=='undefined'?editingId:null;if(id!==null&&typeof wear==='function')wear(id)};
+    const b=document.createElement('button');
     b.id='ofAddBtn';b.type='button';b.className='secondary';b.textContent='코디에 담기';b.onclick=addToOutfit;
     const rb=document.createElement('button');rb.id='ofRecBtn';rb.type='button';rb.className='secondary';rb.textContent='이 옷으로 추천';rb.onclick=()=>recWith();
-    const wrap=document.createElement('div');wrap.className='actions';wrap.appendChild(b);wrap.appendChild(rb);
-    row.parentNode.insertBefore(wrap,row);
+    const wrap=document.createElement('div');wrap.className='actions of-acts';wrap.appendChild(wb);wrap.appendChild(b);wrap.appendChild(rb);
+    const anchor=$('editPartial')||$('editImg');
+    if(anchor)anchor.parentNode.insertBefore(wrap,anchor.nextSibling);else save.parentNode.parentNode.insertBefore(wrap,save.parentNode);
   }
+  // '오늘 입음' 글자: 오늘 이미 입었으면 ✓(index.html wear()가 하루 한 번만 센다)
+  function syncWearBtn(){const b=$('ofWearBtn');if(!b)return;const id=typeof editingId!=='undefined'?editingId:null,c=id===null?null:byId(id);b.textContent=c&&typeof isToday==='function'&&isToday(c.lastWorn)?'오늘 입음 ✓':'오늘 입음'}
 
   // ---------- 옷장 탭 보조: 검색·4열 ----------
   function installClosetTools(){
@@ -360,11 +366,11 @@
     const so=$('closetSort');so.value=closetSort;so.onchange=e=>{closetSort=e.target.value;try{localStorage.setItem('wardrobe.closetSort',closetSort)}catch{}safe(applyClosetTools,'옷장 정렬')};
   }
   // index.html render()와 같은 기준으로 카드 순서를 재현해 카드마다 옷 데이터를 대응시킨다(버튼 글자 대신 데이터로 검색)
-  function closetOrder(){const f=typeof filter!=='undefined'?filter:'전체';return (f==='보관함'?clothes.filter(c=>c.archived):clothes.filter(c=>!c.archived&&(f==='전체'||c.category===f))).slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))}
+  function closetOrder(){if(typeof closetFiltered==='function')return closetFiltered();const f=typeof filter!=='undefined'?filter:'전체';return (f==='보관함'?clothes.filter(c=>c.archived):clothes.filter(c=>!c.archived&&(f==='전체'||c.category===f))).slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))}
   function applyClosetTools(){
     const items=$('items');if(!items)return;
     items.classList.toggle('dense',dense);
-    const btn=$('densityBtn');if(btn)btn.textContent=dense?'2열':'4열';
+    const btn=$('densityBtn');if(btn)btn.textContent=dense?'3열':'4열';
     const kids=[...items.children];
     if(kids.some(el=>!el.dataset.ofId)){ // render 직후: 카드 순서로 옷을 대응시켜 표시해 둔다(이후 정렬·검색은 이 표시로)
       const list=closetOrder();
@@ -461,13 +467,13 @@
 .cal-cell.sel{outline:2px solid #166534}.cal-cell.today{border:1px solid #166534;color:#166534}
 .cal-cell .n{position:absolute;right:3px;bottom:2px;background:#171717;color:#fff;border-radius:999px;padding:0 5px;font-size:10px}
 .cal-day{margin-top:12px;border-top:1px solid #eee;padding-top:10px}
-#closetTools input{margin:0}
+#closetTools input{margin:0}#closetSearch{flex:1 1 120px;min-width:0}#closetSort{max-width:40%}
 #items.dense{grid-template-columns:repeat(4,1fr);gap:6px}
 #items.dense .item img{height:auto;aspect-ratio:1/1}
 #items.dense .info{padding:3px 5px}
 #items.dense .info>:not(.title){display:none}
 #items.dense .info .title{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#ofAddBtn{width:100%}
+#ofAddBtn{width:100%}.of-acts{margin:10px 0 4px}.of-acts button{font-size:14px;padding:11px 6px;min-height:44px}
 #closetTools select{padding:10px 8px;font-size:16px}
 #ofToast{position:fixed;left:50%;bottom:calc(74px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#171717;color:#fff;border-radius:999px;padding:9px 14px;font-size:13px;z-index:60;max-width:90vw;display:none}
 #ofToast.show{display:block}`;
@@ -502,7 +508,7 @@
   function renderRelated(){
     const d=$('ofRelated');if(!d)return;
     const id=typeof editingId!=='undefined'?editingId:null,c=id===null?null:byId(id),every=c?relatedOf(id):[],list=every.filter(o=>!o.archived),days=c?wornDaysOf(id,every):[];
-    syncRecBtn(); // '이 옷으로 추천'은 액세서리·보관한 옷, 분류를 바꾸고 저장하기 전에는 없음
+    syncRecBtn();syncWearBtn(); // '이 옷으로 추천'은 액세서리·보관한 옷, 분류를 바꾸고 저장하기 전에는 없음
     d.hidden=!list.length&&!days.length;
     if(d.hidden){d.querySelector('.of-rel-strip').innerHTML='';d.querySelector('.of-rel-more').innerHTML='';return}
     d.open=relatedPref===true;
@@ -614,13 +620,14 @@
       if(pickSlot&&$('pickModal').classList.contains('open'))safe(renderPickGrid,'옷 고르기');
       if(window.OFL&&OFL.isOpen())safe(()=>OFL.renderDetail(),'코디 상세');
       if(addWornFor&&$('wornModal').classList.contains('open'))safe(renderWornGrid,'코디 고르기');
+      if($('editModal')&&$('editModal').classList.contains('open'))safe(syncWearBtn,'옷 창'); // 오늘 입음 뒤
     };
     const baseShow=window.showPage;
     window.showPage=function(id){baseShow.apply(this,arguments);if(id==='outfit'&&outfitDirty)safe(renderOutfitPage,'코디 화면');if(id==='closet'&&closetDirty)render()};
     // 뒤로 가기 캐시에서 돌아오면 index.html이 URL을 모두 해제했으므로 열린 시트를 다시 그린다
     window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(pickSlot)safe(renderPick,'옷 고르기');if(addWornFor)safe(renderWornPick,'코디 고르기');if(window.OFL&&OFL.isOpen())safe(()=>OFL.renderDetail(),'코디 상세')});
     // 앱을 켜 둔 채 날짜·달이 바뀌면 '오늘'과 달력을 맞춘다(사용자가 다른 달로 옮겨 둔 경우는 그대로)
-    document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')return;const m=today().slice(0,7);if(calMonth===calAutoMonth&&calMonth!==m){calMonth=m;calAutoMonth=m;calDay=null}refreshOutfitView()});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')return;const m=today().slice(0,7);if(calMonth===calAutoMonth&&calMonth!==m){calMonth=m;calAutoMonth=m;calDay=null}refreshOutfitView();if($('editModal')&&$('editModal').classList.contains('open'))safe(syncWearBtn,'옷 창')});
     // refresh()가 이미 끝나 첫 render가 지나갔으면 감싼 render로 다시 그린다. 아직이면 refresh가 감싼 render를 부른다
     const s=$('summary');if(dataReady()&&s&&!/불러오는/.test(s.textContent))render();else safe(renderOutfitPage,'코디 화면');
   }
