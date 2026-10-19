@@ -1754,6 +1754,34 @@ async function check(name, fn, opts) {
     assert.deepEqual(r, { n: true, kept: true, released: 0 });
   });
 
+  await check('v5.1 closet 고르기: tapping cards selects instead of opening the window; 포멀로 writes formality 3 + updatedAt only for clothes that change, in one go; 되돌리기 restores the old values; leaving the closet ends selection', async page => {
+    const r = await page.evaluate(async () => {
+      await basic();
+      await transaction(['clothes'], 'readwrite', tx => { const s = tx.objectStore('clothes'), q = s.get('t3'); q.onsuccess = () => s.put({ ...q.result, formality: 3, updatedAt: 5 }); }); await refresh();
+      const card = id => document.querySelector(`#items .item[data-of-id="${id}"]`);
+      document.getElementById('selBtn').click();
+      const bar = document.getElementById('selBar'), lv = n => bar.querySelector(`[data-lv="${n}"]`);
+      const before = { bar: !bar.hidden, disabled: lv(3).disabled };
+      card('t2').querySelector('img').click(); card('t3').querySelector('.info').click(); card('b1').querySelector('img').click(); card('b1').querySelector('img').click(); await sleep(20);
+      const picked = { modal: document.getElementById('editModal').classList.contains('open'), count: document.getElementById('selCount').textContent, marked: [...document.querySelectorAll('#items .item.picked')].map(e => e.dataset.ofId).sort() };
+      lv(3).click(); await sleep(150);
+      const db1 = Object.fromEntries((await clothesDB()).map(c => [c.id, [c.formality, c.updatedAt ?? null]]));
+      const toast1 = toastText(), after = { count: document.getElementById('selCount').textContent, stillOn: !bar.hidden };
+      [...document.querySelectorAll('#appToast button')].find(b => b.textContent === '되돌리기').click(); await sleep(150);
+      const db2 = Object.fromEntries((await clothesDB()).map(c => [c.id, [c.formality, c.updatedAt ?? null]]));
+      const inp = document.getElementById('closetSearch'); inp.value = '셔츠'; inp.dispatchEvent(new Event('input'));
+      document.getElementById('selAll').click(); const all = document.getElementById('selCount').textContent; inp.value = ''; inp.dispatchEvent(new Event('input'));
+      goto('추천'); goto('옷장');
+      return { before, picked, t2: db1.t2[0], t2ts: typeof db1.t2[1], t3: db1.t3, b1: db1.b1, toast1, after, db2t2: db2.t2, db2t3: db2.t3, all, end: { bar: bar.hidden, marked: document.querySelectorAll('#items .item.picked').length, btn: document.getElementById('selBtn').textContent } };
+    });
+    assert.deepEqual(r.before, { bar: true, disabled: true });
+    assert.deepEqual(r.picked, { modal: false, count: '2벌 선택', marked: ['t2', 't3'] });
+    assert.equal(r.t2, 3); assert.equal(r.t2ts, 'number'); assert.deepEqual(r.t3, [3, 5]); assert.deepEqual(r.b1, [2, null]);
+    assert.match(r.toast1, /1벌을 포멀\(으\)로 바꿨습니다/); assert.deepEqual(r.after, { count: '0벌 선택', stillOn: true });
+    assert.deepEqual(r.db2t2, [2, null]); assert.deepEqual(r.db2t3, [3, 5]);
+    assert.equal(r.all, '2벌 선택'); assert.deepEqual(r.end, { bar: true, marked: 0, btn: '고르기' });
+  });
+
   await browser.close(); server.close();
   console.log(`\n${passed} passed, ${failed} failed. Chromium only — iPhone Safari itself is not verified by this suite.`);
   process.exit(failed ? 1 : 0);

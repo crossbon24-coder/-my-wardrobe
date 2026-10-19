@@ -1,4 +1,5 @@
 /* outfits.js — 코디 만들기·착용 캘린더·옷장 검색/4열·옷 창 패널 (Claude Code, v4.0~)
+   v5.1: 옷장 '고르기'로 여러 벌의 격식을 한꺼번에 바꾼다(되돌리기 있음).
    v5.0: 하단 탭 옷장·코디·추천·더보기, 옷장 3열(4열 전환), 옷 창 '오늘 입음'.
    v4.11: 코디 탭은 세 화면이다. 목록(view 'list', 모아보기는 outfit-list.js가 그림)·캘린더('cal')·만들기('builder', '+ 새 코디'·고치기·코디에 담기·추천 담기로 연다).
    index.html의 전역(clothes, outfits, db, filter, editingId, $, esc, arg, url, transaction, refresh, render, showPage, closeEdit, reportError)을
@@ -393,11 +394,79 @@
     const nm=$('closetNoMatch');if(nm){const show=ts.length>0&&kids.length>0&&n===0;nm.hidden=!show;if(show)nm.textContent=`'${closetQuery.trim()}'에 맞는 옷이 없습니다.`}
   }
 
+  // ---------- 옷장 고르기: 여러 벌 격식 한꺼번에 바꾸기(v5.1) ----------
+  // 고르는 동안 카드를 누르면 옷 창 대신 고른다(카드의 dataset.ofId 기준, 검색·칩으로 걸러 고르기).
+  // 한 트랜잭션에서 격식이 실제로 바뀌는 옷만 formality(1/3)·updatedAt을 쓴다. 되돌리기는 그 사이 다시 바뀌지 않은 옷만
+  let selMode=false;const sel=new Set();
+  function selectable(){return [...($('items')?.children||[])].filter(el=>el.dataset.ofId&&!el.hidden)}
+  function syncSel(){
+    const items=$('items');if(!items)return;
+    const ids=new Set(clothes.map(c=>String(c.id)));for(const id of [...sel])if(!ids.has(id))sel.delete(id); // 지운 옷
+    $('closet')?.classList.toggle('selecting',selMode);
+    for(const el of items.children)el.classList.toggle('picked',selMode&&sel.has(el.dataset.ofId));
+    const bar=$('selBar');if(!bar)return;bar.hidden=!selMode;
+    const btn=$('selBtn');if(btn)btn.textContent=selMode?'끝내기':'고르기';
+    $('selCount').textContent=`${sel.size}벌 선택`;
+    for(const b of bar.querySelectorAll('[data-lv]'))b.disabled=!sel.size;
+  }
+  function setSelMode(on){selMode=on;sel.clear();syncSel()}
+  function onItemsClick(e){
+    if(!selMode)return;const el=e.target.closest('.item');if(!el||!$('items').contains(el))return;
+    e.preventDefault();e.stopPropagation();
+    const id=el.dataset.ofId;if(!id){say('이 카드는 고를 수 없습니다. 검색을 지우고 다시 해 보세요');return}
+    if(sel.has(id))sel.delete(id);else sel.add(id);syncSel();
+  }
+  function selectVisible(){const vis=selectable().map(el=>el.dataset.ofId);if(vis.length&&vis.every(id=>sel.has(id)))vis.forEach(id=>sel.delete(id));else vis.forEach(id=>sel.add(id));syncSel()}
+  async function bulkFormality(lv){
+    const ids=clothes.filter(c=>sel.has(String(c.id))).map(c=>c.id);if(!ids.length)return;
+    const name=lv===3?'포멀':'캐주얼',changed=[];
+    await locked(async()=>{
+      try{
+        const ts=Date.now();
+        await transaction(['clothes'],'readwrite',tx=>{const s=tx.objectStore('clothes');for(const id of ids){const q=s.get(id);q.onsuccess=()=>{const r=q.result;if(!r||formalityLevel(r.formality)===lv)return;changed.push({id,formality:r.formality,updatedAt:r.updatedAt,ts});s.put({...r,formality:lv,updatedAt:ts})}}});
+        sel.clear();await refresh();
+      }catch(e){changed.length=0;reportError(e,'격식을 바꾸지 못했습니다.');return}
+      if(!changed.length){say(`고른 옷이 이미 모두 ${name}입니다`);return}
+      const prev=changed.slice();
+      window.toast(`${prev.length}벌을 ${name}(으)로 바꿨습니다`,'되돌리기',()=>undoBulk(prev,lv));
+    });
+  }
+  async function undoBulk(prev,lv){
+    let n=0;
+    await locked(async()=>{
+      try{
+        await transaction(['clothes'],'readwrite',tx=>{const s=tx.objectStore('clothes');for(const p of prev){const q=s.get(p.id);q.onsuccess=()=>{const r=q.result;if(!r||r.formality!==lv||r.updatedAt!==p.ts)return;const next={...r,formality:p.formality};if(p.formality===undefined)delete next.formality;if(p.updatedAt===undefined)delete next.updatedAt;else next.updatedAt=p.updatedAt;s.put(next);n++}}});
+        await refresh();
+      }catch(e){reportError(e,'되돌리지 못했습니다.');return}
+      say(n===prev.length?'되돌렸습니다':`${n}벌만 되돌렸습니다(그 사이 바뀐 옷은 그대로)`);
+    });
+  }
+  function installSelect(){
+    const tools=$('closetTools');if(!tools||$('selBtn'))return;
+    const b=document.createElement('button');b.type='button';b.id='selBtn';b.className='secondary';b.style.flex='none';b.textContent='고르기';
+    b.onclick=()=>setSelMode(!selMode);tools.appendChild(b);
+    const bar=document.createElement('div');bar.id='selBar';bar.hidden=true;
+    bar.innerHTML=`<span id="selCount" class="small">0벌 선택</span><button type="button" class="secondary" id="selAll">보이는 옷 모두</button><button type="button" data-lv="3">포멀로</button><button type="button" class="secondary" data-lv="1">캐주얼로</button>`;
+    tools.parentNode.insertBefore(bar,tools.nextSibling);
+    $('selAll').onclick=selectVisible;
+    for(const x of bar.querySelectorAll('[data-lv]'))x.onclick=()=>bulkFormality(+x.dataset.lv);
+    $('items')?.addEventListener('click',onItemsClick,true); // 카드의 onclick(옷 창)보다 먼저
+  }
+
   // ---------- 초기화 ----------
   function injectCSS(){
     const s=document.createElement('style');s.textContent=`
 #outfit .fl{display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:340px;margin:auto}
 .fl{display:flex;flex-direction:column;gap:8px;align-items:center;width:100%}
+#selBar{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:#f6f5f2;padding:8px 0;margin-bottom:6px}
+#selBar[hidden]{display:none}
+#selBar button{flex:none;width:auto;margin:0;padding:8px 12px}
+#selCount{flex:1 1 auto;font-weight:700}
+#closet.selecting #addFab{display:none}
+#closet.selecting .item{cursor:pointer}
+#closet.selecting .item::after{content:'';position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;border:2px solid #fff;background:rgba(0,0,0,.25);box-shadow:0 0 0 1px rgba(0,0,0,.2);pointer-events:none}
+#closet.selecting .item.picked{outline:3px solid #111;outline-offset:-3px}
+#closet.selecting .item.picked::after{content:'✓';background:#111;color:#fff;font-size:13px;font-weight:700;line-height:18px;text-align:center}
 .fl-row{display:flex;gap:8px;justify-content:center;width:100%}
 .fl-tile{flex:1 1 0;max-width:calc(50% - 4px);aspect-ratio:1;border-radius:14px;background:#eee;display:flex;align-items:center;justify-content:center;color:#888;font-size:13px;position:relative;overflow:hidden}
 .fl-row.n3 .fl-tile{max-width:calc(33.333% - 6px)}
@@ -610,12 +679,12 @@
 
   function init(){
     try{dense=localStorage.getItem('wardrobe.dense')==='1';closetSort=localStorage.getItem('wardrobe.closetSort')||'recent';relatedPref=localStorage.getItem('wardrobe.relatedOpen')==='1';localStorage.removeItem('wardrobe.builderOpen')}catch{} // v4.8.6~4.10 만들기 칸 접기 설정은 v4.11에서 쓰지 않음
-    injectCSS();ensureDOM();installClosetTools();installEditButton();installRelated();restoreDraft();
+    injectCSS();ensureDOM();installClosetTools();installSelect();installEditButton();installRelated();restoreDraft();
     const baseOpenEdit=window.openEdit;if(typeof baseOpenEdit==='function')window.openEdit=function(){baseOpenEdit.apply(this,arguments);safe(renderRelated,'이 옷이 든 코디')};
     const baseRender=window.render;
     window.render=function(){
       closetDirty=false;baseRender.apply(this,arguments);safe(sanitizeDraft,'코디 초안');
-      safe(applyClosetTools,'옷장 검색');
+      safe(applyClosetTools,'옷장 검색');safe(syncSel,'옷 고르기');
       if(outfitVisible())safe(renderOutfitPage,'코디 화면');else outfitDirty=true; // 숨겨진 코디 화면은 보일 때 그린다
       if(pickSlot&&$('pickModal').classList.contains('open'))safe(renderPickGrid,'옷 고르기');
       if(window.OFL&&OFL.isOpen())safe(()=>OFL.renderDetail(),'코디 상세');
@@ -623,7 +692,7 @@
       if($('editModal')&&$('editModal').classList.contains('open'))safe(syncWearBtn,'옷 창'); // 오늘 입음 뒤
     };
     const baseShow=window.showPage;
-    window.showPage=function(id){baseShow.apply(this,arguments);if(id==='outfit'&&outfitDirty)safe(renderOutfitPage,'코디 화면');if(id==='closet'&&closetDirty)render()};
+    window.showPage=function(id){if(id!=='closet'&&selMode)setSelMode(false);baseShow.apply(this,arguments);if(id==='outfit'&&outfitDirty)safe(renderOutfitPage,'코디 화면');if(id==='closet'&&closetDirty)render()};
     // 뒤로 가기 캐시에서 돌아오면 index.html이 URL을 모두 해제했으므로 열린 시트를 다시 그린다
     window.addEventListener('pageshow',e=>{if(!e.persisted)return;if(pickSlot)safe(renderPick,'옷 고르기');if(addWornFor)safe(renderWornPick,'코디 고르기');if(window.OFL&&OFL.isOpen())safe(()=>OFL.renderDetail(),'코디 상세')});
     // 앱을 켜 둔 채 날짜·달이 바뀌면 '오늘'과 달력을 맞춘다(사용자가 다른 달로 옮겨 둔 경우는 그대로)
