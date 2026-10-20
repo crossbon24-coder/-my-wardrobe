@@ -688,7 +688,7 @@ async function check(name, fn, opts) {
   }, { iphone: true, standalone: true });
 
   await check('Version is the same in APP_VERSION, version.json, the visible labels and both cache-busting script URLs', async page => {
-    const r = await page.evaluate(async () => { const html = await (await fetch('./index.html', { cache: 'no-store' })).text(), v = (await (await fetch('./version.json', { cache: 'no-store' })).json()).version; return { v, app: APP_VERSION, label: html.includes(`현재 버전 <b>v${v}</b>`), foot: html.includes(`Wardrobe v${v}`), imp: html.includes(`wardrobe-import.js?v=${v}`) && html.includes(`recommend.js?v=${v}`), out: html.includes(`outfits.js?v=${v}`) && html.includes(`outfit-list.js?v=${v}`) }; });
+    const r = await page.evaluate(async () => { const html = await (await fetch('./index.html', { cache: 'no-store' })).text(), v = (await (await fetch('./version.json', { cache: 'no-store' })).json()).version; return { v, app: APP_VERSION, label: html.includes(`현재 버전 <b>v${v}</b>`), foot: html.includes(`Wardrobe v${v}`), imp: html.includes(`wardrobe-import.js?v=${v}`) && html.includes(`recommend.js?v=${v}`) && html.includes(`thumbs.js?v=${v}`), out: html.includes(`outfits.js?v=${v}`) && html.includes(`outfit-list.js?v=${v}`) }; });
     assert.equal(r.app, r.v); assert.deepEqual([r.label, r.foot, r.imp, r.out], [true, true, true, true]);
   });
 
@@ -706,7 +706,7 @@ async function check(name, fn, opts) {
       const fails = u => fetch(u).then(() => false, () => true);
       const names = await caches.keys(), keys = (await (await caches.open(names[0])).keys()).map(k => new URL(k.url).pathname + new URL(k.url).search);
       await checkUpdate(true);
-      return { names, v: APP_VERSION, extras: typeof initWardrobeExtras, outfits: keys.includes(`/outfits.js?v=${APP_VERSION}`) && keys.includes(`/outfit-list.js?v=${APP_VERSION}`), imp: keys.includes(`/wardrobe-import.js?v=${APP_VERSION}`) && keys.includes(`/recommend.js?v=${APP_VERSION}`), junk: keys.filter(k => /[?&](t|refresh)=|version\.json/.test(k)),
+      return { names, v: APP_VERSION, extras: typeof initWardrobeExtras, outfits: keys.includes(`/outfits.js?v=${APP_VERSION}`) && keys.includes(`/outfit-list.js?v=${APP_VERSION}`), imp: keys.includes(`/wardrobe-import.js?v=${APP_VERSION}`) && keys.includes(`/recommend.js?v=${APP_VERSION}`) && keys.includes(`/thumbs.js?v=${APP_VERSION}`), junk: keys.filter(k => /[?&](t|refresh)=|version\.json/.test(k)),
         version: await fails('./version.json'), other: await fails('./outfits.js?v=0.1'), al };
     });
     await context.setOffline(false);
@@ -1780,6 +1780,28 @@ async function check(name, fn, opts) {
     assert.match(r.toast1, /1벌을 포멀\(으\)로 바꿨습니다/); assert.deepEqual(r.after, { count: '0벌 선택', stillOn: true });
     assert.deepEqual(r.db2t2, [2, null]); assert.deepEqual(r.db2t3, [3, 5]);
     assert.equal(r.all, '2벌 선택'); assert.deepEqual(r.end, { bar: true, marked: 0, btn: '고르기' });
+  });
+
+  await check('v5.2 thumbnails: a big photo gets a small copy in wardrobeThumbs (card swaps in place, original stays for the garment window); small photos use the original; copies survive reload without remaking; deleting the garment drops its copy', async page => {
+    const big = async () => { const c = document.createElement('canvas'); c.width = c.height = 900; const x = c.getContext('2d'), d = x.createImageData(900, 900); for (let i = 0; i < d.data.length; i++) d.data[i] = (i % 4 === 3) ? 255 : (Math.random() * 255) | 0; x.putImageData(d, 0, 0); return new Promise(r => c.toBlob(r, 'image/jpeg', .9)); };
+    await page.evaluate(async b => { await seed([{ id: 'big', category: '상의', memo: '큰 사진', image: await (eval(b))() }, { id: 'sm', category: '하의', memo: '작은 사진' }]); }, `(${big})`);
+    const r1 = await page.evaluate(async () => {
+      for (let i = 0; i < 100 && THUMB.stats().thumbs < 1; i++) await sleep(50);
+      const img = id => document.querySelector(`#items img[data-tid="${id}"]`), c = id => clothes.find(x => x.id === id);
+      const tdb = await new Promise(res => { const r = indexedDB.open('wardrobeThumbs'); r.onsuccess = () => { const q = r.result.transaction('thumbs').objectStore('thumbs').getAll(); q.onsuccess = () => { res(q.result.map(x => [x.id, !!x.blob, x.blob ? x.blob.size < c(x.id).image.size : null]).sort()); r.result.close(); }; }; });
+      openEdit('big'); const edit = document.getElementById('editImg').src === url(c('big').image); closeEdit();
+      renderDiag();
+      return { stats: THUMB.stats().thumbs, bigThumb: img('big').src !== url(c('big').image), smOrig: img('sm').src === url(c('sm').image), tdb, edit, diag: /작은 사진 1장/.test(document.getElementById('diagText').textContent) };
+    });
+    assert.deepEqual(r1, { stats: 1, bigThumb: true, smOrig: true, tdb: [['big', true, true], ['sm', false, null]], edit: true, diag: true });
+    await page.reload(); await page.waitForFunction(() => typeof clothes !== 'undefined' && clothes.length === 2 && document.querySelector('#items img[data-tid="big"]'));
+    const r2 = await page.evaluate(async () => {
+      const first = document.querySelector('#items img[data-tid="big"]').src !== url(clothes.find(x => x.id === 'big').image), made = THUMB.stats().made;
+      await transaction(['clothes'], 'readwrite', tx => tx.objectStore('clothes').delete("big")); await refresh(); await new Promise(r => setTimeout(r, 100));
+      const left = await new Promise(res => { const r = indexedDB.open('wardrobeThumbs'); r.onsuccess = () => { const q = r.result.transaction('thumbs').objectStore('thumbs').getAllKeys(); q.onsuccess = () => { res(q.result); r.result.close(); }; }; });
+      return { first, made, left, stats: THUMB.stats().thumbs };
+    });
+    assert.deepEqual(r2, { first: true, made: 0, left: ['sm'], stats: 0 });
   });
 
   await browser.close(); server.close();

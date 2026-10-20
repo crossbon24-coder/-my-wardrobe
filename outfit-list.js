@@ -48,7 +48,7 @@
   // 코디 사진: 옷 사진을 최대 4장까지 정사각형 안에 모은다(1장 전체, 2장 위아래, 3장 위 1장·아래 2장, 4장 2x2). 사진은 잘리지 않게 contain
   function coverHTML(o){
     const u=U(),its=COVER.map(k=>u.byId(o.slots[k])).filter(Boolean).slice(0,4);
-    return `<span class="ofl-cover n${its.length}">${its.length?its.map(c=>`<img src="${url(c.image)}" alt="" loading="lazy" decoding="async" draggable="false">`).join(''):'<span>옷 없음</span>'}</span>`; // 버튼(카드) 안이라 span
+    return `<span class="ofl-cover n${its.length}">${its.length?its.map(c=>`<img ${tsrc(c)} alt="" loading="lazy" decoding="async" draggable="false">`).join(''):'<span>옷 없음</span>'}</span>`; // 버튼(카드) 안이라 span
   }
   const metaOf=o=>o.worn.length?`${o.worn.length}회 · ${md(U().lastWorn(o))}`:'안 입음';
   function cardHTML(o){
@@ -110,7 +110,7 @@
   function detailHTML(o){
     const u=U(),t=u.today(),wornToday=o.worn.includes(t),days=o.worn.slice().reverse();
     const rows=u.SLOTS.filter(s=>o.slots[s.key]!==null&&o.slots[s.key]!==undefined).map(s=>{const c=u.byId(o.slots[s.key]);
-      return c?`<button type="button" class="ofl-it" onclick="OFL.garment(${arg(c.id)})"><img src="${url(c.image)}" alt="" loading="lazy" decoding="async"><span><b>${esc(s.label)}</b> ${esc(u.title(c))}${c.archived?' <span class="muted">(보관한 옷)</span>':''}</span><i aria-hidden="true">›</i></button>`
+      return c?`<button type="button" class="ofl-it" onclick="OFL.garment(${arg(c.id)})"><img ${tsrc(c)} alt="" loading="lazy" decoding="async"><span><b>${esc(s.label)}</b> ${esc(u.title(c))}${c.archived?' <span class="muted">(보관한 옷)</span>':''}</span><i aria-hidden="true">›</i></button>`
         :`<div class="ofl-it gone"><span class="ofl-noimg"></span><span><b>${esc(s.label)}</b> <span class="muted">지운 옷</span></span></div>`}).join('');
     return `<div class="pick-head"><div class="row" style="align-items:center"><h2 style="margin:0;flex:1;min-width:0;overflow-wrap:anywhere">${esc(o.name)}</h2><button type="button" class="ofl-favbtn${o.fav?' on':''}" aria-pressed="${!!o.fav}" aria-label="${o.fav?'즐겨찾기 해제':'즐겨찾기'}" onclick="OF.fav(${arg(o.id)},${o.fav?'false':'true'})">${o.fav?'★':'☆'}</button><button type="button" class="pick-close" aria-label="닫기" onclick="OFL.close()">×</button></div></div>
       ${o.archived?'<p class="small ofl-archived">보관한 코디입니다. 목록에서는 \'보관함\' 칩에서만 보입니다.</p>':''}

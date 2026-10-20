@@ -104,7 +104,7 @@
       if(!d)return '<div></div>';
       const list=wornByDate[d]||[],rep=list.length?repItem(list[0]):null;
       const cls=`cal-cell${calDay===d?' sel':''}${d===t?' today':''}${list.length?' has':''}${d>t?' future':''}`;
-      return `<button type="button" class="${cls}" aria-label="${esc(fmtKo(d))}${list.length?` 기록 ${list.length}개`:''}" onclick="OF.day(${arg(d)})">${rep?`<img src="${url(rep.image)}" alt="" draggable="false" loading="lazy" decoding="async">`:''}<span class="${rep?'onimg':''}">${Number(d.slice(8))}</span>${list.length>1?`<b class="n">${list.length}</b>`:''}</button>`;
+      return `<button type="button" class="${cls}" aria-label="${esc(fmtKo(d))}${list.length?` 기록 ${list.length}개`:''}" onclick="OF.day(${arg(d)})">${rep?`<img ${tsrc(rep)} alt="" draggable="false" loading="lazy" decoding="async">`:''}<span class="${rep?'onimg':''}">${Number(d.slice(8))}</span>${list.length>1?`<b class="n">${list.length}</b>`:''}</button>`;
     }).join('');
     let detail='';
     if(calDay){
@@ -169,7 +169,7 @@
     const box=$('pickGrid');if(!box)return;
     const list=pickCandidates(),cnt=$('pickCount');if(cnt)cnt.textContent=`${list.length}벌`;
     const ofN=typeof outfitCountMap==='function'?outfitCountMap():new Map();
-    box.innerHTML=list.length?`<div class="pgrid">${list.map(c=>`<button type="button" class="pitem${draft[pickSlot]===c.id?' sel':''}" onclick="OF.choose(${arg(c.id)})"><img src="${url(c.image)}" alt="" loading="lazy" decoding="async" draggable="false"><span>${esc(title(c))}</span>${ofN.get(c.id)?`<b class="pcount">코디 ${ofN.get(c.id)}</b>`:''}</button>`).join('')}</div>`
+    box.innerHTML=list.length?`<div class="pgrid">${list.map(c=>`<button type="button" class="pitem${draft[pickSlot]===c.id?' sel':''}" onclick="OF.choose(${arg(c.id)})"><img ${tsrc(c)} alt="" loading="lazy" decoding="async" draggable="false"><span>${esc(title(c))}</span>${ofN.get(c.id)?`<b class="pcount">코디 ${ofN.get(c.id)}</b>`:''}</button>`).join('')}</div>`
       :`<p class="small" style="padding:14px 0">조건에 맞는 옷이 없습니다.${pickAll?'':' 위의 \'전체 분류\'를 누르면 모든 옷에서 고를 수 있습니다.'}</p>`;
   }
   function renderPick(){
@@ -586,7 +586,7 @@
       +(list.length>1?`<button type="button" class="of-rel of-rel-all" onclick="OF.showWith(${arg(id)})">이 옷이 든 코디<br>모두 보기 ›</button>`:'');
     const co=coWornOf(id,every),yr=today().slice(0,4),md=s=>`${s.slice(0,4)===yr?'':s.slice(2,4)+'/'}${Number(s.slice(5,7))}/${Number(s.slice(8))}`;
     d.querySelector('.of-rel-more').innerHTML=(days.length?`<p class="small"><b>입은 날</b> ${days.slice(0,8).map(md).join(', ')}${days.length>8?` 외 ${days.length-8}일`:''} <span class="muted">(코디 기록)</span></p>`:'')
-      +(co.items.length?`<p class="small" style="margin-bottom:4px"><b>${co.worn?'자주 함께 입은 옷':'같은 코디에 든 옷'}</b></p><div class="of-co">${co.items.map(x=>`<div class="of-co-item"><img src="${url(x.image)}" alt="" loading="lazy" decoding="async"><span>${esc(title(x))}</span></div>`).join('')}</div>`:'');
+      +(co.items.length?`<p class="small" style="margin-bottom:4px"><b>${co.worn?'자주 함께 입은 옷':'같은 코디에 든 옷'}</b></p><div class="of-co">${co.items.map(x=>`<div class="of-co-item"><img ${tsrc(x)} alt="" loading="lazy" decoding="async"><span>${esc(title(x))}</span></div>`).join('')}</div>`:'');
   }
   function syncRecBtn(){const b=$('ofRecBtn');if(!b)return;const id=typeof editingId!=='undefined'?editingId:null,c=id===null?null:byId(id),sel=$('editCategory');b.hidden=!c||c.archived||!PIN_SLOT[c.category]||(sel&&sel.value&&sel.value!==c.category)}
   // '이 옷으로 추천': 이 옷을 고정하고 코디 추천 탭에서 나머지를 추천
