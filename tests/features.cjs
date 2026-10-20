@@ -1804,6 +1804,78 @@ async function check(name, fn, opts) {
     assert.deepEqual(r2, { first: true, made: 0, left: ['sm'], stats: 0 });
   });
 
+  await check('v5.3 사진 다듬기: the editor rotates 90°, drags a corner to crop and returns a JPEG of the crop; in the garment window the result becomes the pending photo (saved on 저장, 자르지 않은 사진으로 returns the old one); 취소 changes nothing', async page => {
+    const r = await page.evaluate(async () => {
+      const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = '#c33'; x.fillRect(0, 0, w, h); return new Promise(r => c.toBlob(r, 'image/jpeg', .9)); };
+      await seed([{ id: 'p', category: '상의', memo: '셔츠', image: await mk(400, 200) }]);
+      openEdit('p'); const before = clothes[0].image.size;
+      const drag = async (el, dx, dy) => { const b = el.getBoundingClientRect(), x = b.left + 5, y = b.top + 5; el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: x, clientY: y, pointerId: 1 })); window.dispatchEvent(new PointerEvent('pointermove', { clientX: x + dx, clientY: y + dy, pointerId: 1 })); window.dispatchEvent(new PointerEvent('pointerup', { clientX: x + dx, clientY: y + dy, pointerId: 1 })); await sleep(10); };
+      // 취소
+      document.getElementById('editCropBtn').click(); await sleep(150);
+      const open1 = document.getElementById('peModal').classList.contains('open');
+      document.getElementById('peCancel').click(); await sleep(50);
+      const cancelled = { pending: pendingImage, untrim: document.getElementById('editUntrimBtn').hidden };
+      // 회전 + 자르기
+      document.getElementById('editCropBtn').click(); await sleep(150);
+      document.getElementById('peRot').click(); await sleep(30);
+      const box = document.getElementById('peBox'), bw = box.getBoundingClientRect(), cv = document.getElementById('peCanvas').getBoundingClientRect();
+      const rotated = Math.abs(bw.width / bw.height - 0.5) < 0.05;
+      await drag(box.querySelector('[data-h=se]'), -bw.width / 2, 0);
+      document.getElementById('peOk').click(); await sleep(150);
+      const im = await blobImage(pendingImage);
+      const out = { type: pendingImage.type, w: im.naturalWidth, h: im.naturalHeight, untrim: document.getElementById('editUntrimBtn').hidden, closed: !document.getElementById('peModal').classList.contains('open') };
+      document.getElementById('editUntrimBtn').click(); await sleep(150);
+      const back = await blobImage(pendingImage); const restored = [back.naturalWidth, back.naturalHeight];
+      document.getElementById('editCropBtn').click(); await sleep(150); document.getElementById('peRot').click(); await sleep(30); document.getElementById('peOk').click(); await sleep(150);
+      await saveEdit(); await sleep(150);
+      const saved = await blobImage((await clothesDB())[0].image);
+      return { open1, cancelled, rotated, out, restored, saved: [saved.naturalWidth, saved.naturalHeight], changed: clothes[0].image.size !== before };
+    });
+    assert.deepEqual(r.cancelled, { pending: null, untrim: true }); assert.equal(r.open1, true, JSON.stringify(r)); assert.equal(r.rotated, true, JSON.stringify(r));
+    assert.equal(r.out.type, 'image/jpeg'); assert.equal(r.out.h, 400); assert.ok(Math.abs(r.out.w - 100) <= 3, `crop width ${r.out.w}`); assert.deepEqual([r.out.untrim, r.out.closed], [false, true]);
+    assert.deepEqual(r.restored, [400, 200]); assert.deepEqual(r.saved, [200, 400]);
+  });
+
+  await check('v5.3 사진 다듬기 in the registration list: a queued photo gets a 사진 다듬기 button; the cropped photo replaces it and 자르지 않은 사진으로 brings the original back', async page => {
+    const r = await page.evaluate(async () => {
+      const c = document.createElement('canvas'); c.width = 300; c.height = 300; const x = c.getContext('2d'); x.fillStyle = '#36c'; x.fillRect(0, 0, 300, 300);
+      const f = new File([await new Promise(r => c.toBlob(r, 'image/jpeg', .9))], 'a.jpg', { type: 'image/jpeg' });
+      const img0 = await f2b(f, { trim: false }), q = { image: img0, category: '상의', type: '', color: '', manual: {}, requestId: 0, aiStatus: '', season: '사계절', formality: 1, memo: '' }; applyColorResult(q, await estimateColor(img0)); batch.push(q); renderQueue();
+      const btn = [...document.querySelectorAll('#queue button')].find(b => b.textContent === '사진 다듬기');
+      btn.click(); await sleep(150);
+      const box = document.getElementById('peBox'), b = box.getBoundingClientRect(), h = box.querySelector('[data-h=nw]'), hb = h.getBoundingClientRect();
+      h.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: hb.left + 5, clientY: hb.top + 5 })); window.dispatchEvent(new PointerEvent('pointermove', { clientX: hb.left + 5 + b.width / 2, clientY: hb.top + 5 + b.height / 2 })); window.dispatchEvent(new PointerEvent('pointerup', {}));
+      document.getElementById('peOk').click(); await sleep(300);
+      const a = await blobImage(batch[0].image), untrim = [...document.querySelectorAll('#queue button')].find(b => b.textContent === '자르지 않은 사진으로');
+      untrim.click(); await sleep(300); const o = await blobImage(batch[0].image);
+      return { cropped: [a.naturalWidth, a.naturalHeight], hasUntrim: !!untrim, back: [o.naturalWidth, o.naturalHeight] };
+    });
+    assert.ok(Math.abs(r.cropped[0] - 150) <= 3 && Math.abs(r.cropped[1] - 150) <= 3, JSON.stringify(r.cropped)); assert.equal(r.hasUntrim, true); assert.deepEqual(r.back, [300, 300]);
+  });
+
+  await check('v5.3 배경 지우기: the editor offers it; U²-Netp (vendored model, pinned onnxruntime-web with SRI) runs on a photo and returns a same-size white-background canvas with a garment box; the box becomes the crop', async page => {
+    await page.unroute('https://**/*'); await page.route(u => u.protocol === 'https:' && u.hostname !== 'cdn.jsdelivr.net', r => r.abort()); // 이 검사만 jsDelivr(onnxruntime-web)를 연다
+    const r = await page.evaluate(async () => {
+      const c = document.createElement('canvas'); c.width = 480; c.height = 360; const x = c.getContext('2d');
+      x.fillStyle = '#d9cbb3'; x.fillRect(0, 0, 480, 360); for (let i = 0; i < 400; i++) { x.fillStyle = `rgba(120,100,80,${Math.random() * .2})`; x.fillRect(Math.random() * 480, Math.random() * 360, 6, 6); }
+      x.fillStyle = '#1d3b8a'; x.beginPath(); x.moveTo(170, 70); x.lineTo(310, 70); x.lineTo(360, 130); x.lineTo(320, 150); x.lineTo(310, 300); x.lineTo(170, 300); x.lineTo(160, 150); x.lineTo(120, 130); x.closePath(); x.fill();
+      const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .92));
+      const p = PHOTO.edit(blob); await sleep(150);
+      const shown = !document.getElementById('peBg').hidden, sri = !!SRI;
+      let res = null, err = '';
+      try { const t0 = performance.now(); const src = document.createElement('canvas'); src.width = 480; src.height = 360; src.getContext('2d').drawImage(c, 0, 0); res = await BGR.remove(src); res.ms = Math.round(performance.now() - t0); } catch (e) { err = String(e && e.message || e); }
+      document.getElementById('peCancel').click(); await p;
+      if (!res) return { shown, err };
+      const px = res.canvas.getContext('2d').getImageData(5, 5, 1, 1).data;
+      return { shown, sri, size: [res.canvas.width, res.canvas.height], corner: [px[0], px[1], px[2]], box: res.box, ms: res.ms, scriptOk: [...document.scripts].some(s => s.src.includes('onnxruntime-web@1.30.0') && s.integrity.startsWith('sha384-')) };
+    });
+    if (r.err) { if (/다운로드|fetch|Failed|network/i.test(r.err)) { console.log('   (skip: CDN unreachable)', r.err); return; } throw new Error(r.err); }
+    console.log('   bg-remove ms', r.ms, 'box', JSON.stringify(r.box));
+    assert.equal(r.shown, true); assert.equal(r.scriptOk, true); assert.deepEqual(r.size, [480, 360]);
+    assert.ok(r.corner.every(v => v > 235), 'background corner should become white: ' + r.corner);
+    assert.ok(r.box && r.box.x > 60 && r.box.x < 200 && r.box.x + r.box.w > 300 && r.box.y + r.box.h > 240, 'box ' + JSON.stringify(r.box));
+  });
+
   await browser.close(); server.close();
   console.log(`\n${passed} passed, ${failed} failed. Chromium only — iPhone Safari itself is not verified by this suite.`);
   process.exit(failed ? 1 : 0);

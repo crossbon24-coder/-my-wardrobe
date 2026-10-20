@@ -86,6 +86,7 @@
 | 2026-10-20 | Claude | 사용자 승인으로 커밋 기록 정리(작성자 noreply, 옛 문서 실명 제거) 후 강제 push. 커밋 번호가 모두 바뀌었으니 다른 사본은 새로 clone. 문서 정리: PROJECT.md는 현재 기준·원칙(1·5·10장)만, 지난 기록은 CHANGELOG.md로 옮김. 다음: v5.1 포멀 일괄 편집 → v5.2 썸네일 → v5.3 상세·편집 분리 |
 | 2026-10-20 | Claude | v5.1 옷장 '고르기': 여러 벌을 골라 포멀·캐주얼로 한꺼번에(바뀌는 옷만 formality·updatedAt, 한 트랜잭션, 되돌리기). outfits.js만, 데이터 형식 변경 없음. 검사 regression 37·outfits 20·features 113 통과 |
 | 2026-10-20 | Claude | v5.2 목록용 작은 사진: thumbs.js 신설, 별도 IndexedDB wardrobeThumbs(백업·wardrobeDB 그대로), 360px, 60KB 미만 원본 사용, 그려진 뒤 하나씩 만들어 자리만 교체, 옷장·코디 목록·고르기·추천 카드에 적용. 검사 regression 37·outfits 20·features 114 통과 |
+| 2026-10-20 | Claude | v5.3 사진 다듬기: photo-edit.js(자르기·회전, 등록 목록·옷 창), bg-remove.js(U²-Netp 4.6MB 저장소에 포함, onnxruntime-web 1.30.0 SRI, 한 스레드). 데이터 형식 변경 없음. 검사 regression 37·outfits 20·features 117 통과 |
 
 ## 6. 현재 작업 중
 
