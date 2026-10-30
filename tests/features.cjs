@@ -1876,6 +1876,129 @@ async function check(name, fn, opts) {
     assert.ok(r.box && r.box.x > 60 && r.box.x < 200 && r.box.x + r.box.w > 300 && r.box.y + r.box.h > 240, 'box ' + JSON.stringify(r.box));
   });
 
+  await check('v5.4 추천 카드 입었어요·저장·고치기: 입었어요 saves the combo as an outfit and logs today in one go (clothes wearCount +1), the screen keeps the cards; again is a no-op; 되돌리기 removes the outfit and restores the counts; 저장 on an already saved combo makes no copy', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); goto('코디 추천'); recommend(); await sleep(50);
+      const card = document.querySelector('#result .reccard'), labels = [...card.querySelectorAll('.actions button')].map(b => b.textContent);
+      const slots = recommendations[0].slots, ids = Object.values(slots).filter(Boolean), wc = () => ids.map(id => clothes.find(c => c.id === id).wearCount || 0);
+      const before = wc();
+      card.querySelector('.recwear').click(); await sleep(300);
+      const o1 = await outfitsDB(), msg1 = toastText(), after = wc(), cardsKept = document.querySelectorAll('#result .reccard').length;
+      document.querySelector('#result .recwear').click(); await sleep(300);
+      const o2 = await outfitsDB(), msg2 = toastText(), after2 = wc();
+      // 되돌리기(첫 기록): 코디를 비우고 다시 기록한 뒤 말풍선의 되돌리기를 누른다
+      await transaction(['outfits'], 'readwrite', tx => tx.objectStore('outfits').clear()); await refresh(); goto('코디 추천'); await sleep(50);
+      const base = wc(); document.querySelector('#result .recwear').click(); await sleep(300);
+      document.querySelector('#appToast button').click(); await sleep(300);
+      const o3 = await outfitsDB(), undone = wc();
+      // 저장: 처음은 새 코디, 같은 조합을 다시 저장하면 복제하지 않는다
+      document.querySelector('#result .recsave').click(); await sleep(300); const o4 = (await outfitsDB()).length;
+      document.querySelector('#result .recsave').click(); await sleep(300); const o5 = (await outfitsDB()).length, msg5 = toastText();
+      return { labels, before, after, after2, o1: o1.map(o => ({ worn: o.worn, slots: Object.values(o.slots).filter(Boolean).sort() })), ids: [...ids].sort(), msg1, cardsKept, n2: o2.length, msg2, base, undone, o3: o3.length, o4, o5, msg5 };
+    });
+    assert.deepEqual(r.labels, ['입었어요', '저장', '고치기']);
+    assert.equal(r.o1.length, 1); assert.deepEqual(r.o1[0].slots, r.ids); assert.equal(r.o1[0].worn.length, 1); assert.match(r.msg1, /오늘 입은 것으로 기록/);
+    assert.deepEqual(r.after, r.before.map(n => n + 1)); assert.ok(r.cardsKept >= 1, 'recommendation cards stay');
+    assert.equal(r.n2, 1); assert.match(r.msg2, /이미 기록/); assert.deepEqual(r.after2, r.after);
+    assert.equal(r.o3, 0); assert.deepEqual(r.undone, r.base);
+    assert.equal(r.o4, 1); assert.equal(r.o5, 1); assert.match(r.msg5, /이미 저장된 코디/);
+  });
+
+  await check('v5.4 추천 목적·날씨 기억: with nothing saved, weekdays open on 출근 and weekends on 편한 외출; a choice made today is kept; on a new day the purpose goes back to the default while the weather is kept', async page => {
+    const r = await page.evaluate(async () => {
+      const wd = new Date().getDay(), def = wd === 0 || wd === 6 ? '1' : '3';
+      localStorage.removeItem('wardrobe.recPrefs'); loadRecPrefs(); const first = $('occasion').value;
+      $('occasion').value = '2'; $('occasion').dispatchEvent(new Event('change')); $('weather').value = 'cold'; $('weather').dispatchEvent(new Event('change'));
+      $('occasion').value = '1'; $('weather').value = 'normal'; loadRecPrefs(); const same = [$('occasion').value, $('weather').value];
+      const p = JSON.parse(localStorage.getItem('wardrobe.recPrefs')); p.day = '2000-01-01'; localStorage.setItem('wardrobe.recPrefs', JSON.stringify(p));
+      loadRecPrefs(); const next = [$('occasion').value, $('weather').value];
+      return { def, first, same, next };
+    });
+    assert.equal(r.first, r.def); assert.deepEqual(r.same, ['2', 'cold']); assert.deepEqual(r.next, [r.def, 'cold']);
+  });
+
+  await check('v5.4 사진 다듬기 고침: 배경 지우기 that finds no garment leaves the photo; after a removal the button becomes 배경 되돌리기 and restores it; a removal finishing after 취소 does not touch the next photo; a second finger is ignored; corner handles are at least 44px', async page => {
+    const r = await page.evaluate(async () => {
+      const mk = (w, h, col) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = col; x.fillRect(0, 0, w, h); return new Promise(r => c.toBlob(r, 'image/jpeg', .9)); };
+      const white = cv => { const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); return c; };
+      const px = () => { const d = document.getElementById('peCanvas').getContext('2d').getImageData(3, 3, 1, 1).data; return d[0] > 200 && d[1] > 200 && d[2] > 200 ? 'white' : 'photo'; };
+      const bg = () => document.getElementById('peBg');
+      let gate = null;
+      window.BGR = { supported: () => true, remove: async src => { if (gate) await gate.p; return window.nextRes(src); } };
+      // 1) 옷을 못 찾음 → 그대로
+      window.nextRes = src => ({ canvas: white(src), box: null });
+      let p = PHOTO.edit(await mk(300, 200, '#c33')); await sleep(150);
+      bg().click(); await sleep(100); const noBox = { px: px(), label: bg().textContent, msg: document.getElementById('peMsg').textContent };
+      // 2) 지움 → 되돌리기
+      window.nextRes = src => ({ canvas: white(src), box: { x: 50, y: 50, w: 100, h: 80 } });
+      bg().click(); await sleep(100); const removed = { px: px(), label: bg().textContent };
+      bg().click(); await sleep(100); const back = { px: px(), label: bg().textContent };
+      document.getElementById('peCancel').click(); await p;
+      // 3) 처리 중 취소 → 다음 사진은 그대로
+      let open; gate = { p: new Promise(r => { open = r; }) };
+      p = PHOTO.edit(await mk(300, 200, '#36c')); await sleep(150); bg().click(); await sleep(30);
+      document.getElementById('peCancel').click(); await p;
+      const g = gate; gate = null; const p2 = PHOTO.edit(await mk(300, 200, '#3a3')); await sleep(150);
+      open(); await g.p; await sleep(150); const stale = { px: px(), label: bg().textContent };
+      // 4) 두 번째 손가락
+      const box = document.getElementById('peBox'), h = box.querySelector('[data-h=se]'), hb = h.getBoundingClientRect(), w0 = box.getBoundingClientRect().width;
+      h.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, clientX: hb.left + 20, clientY: hb.top + 20 }));
+      document.getElementById('peCanvas').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 2, clientX: 100, clientY: 300 }));
+      window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 2, clientX: 10, clientY: 10 })); const w1 = box.getBoundingClientRect().width;
+      window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: hb.left - 40, clientY: hb.top + 20 })); const w2 = box.getBoundingClientRect().width;
+      window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
+      const hs = [hb.width, hb.height];
+      document.getElementById('peCancel').click(); await p2;
+      return { noBox, removed, back, stale, w0, w1, w2, hs };
+    });
+    assert.deepEqual([r.noBox.px, r.noBox.label], ['photo', '배경 지우기']); assert.match(r.noBox.msg, /그대로/);
+    assert.deepEqual(r.removed, { px: 'white', label: '배경 되돌리기' }); assert.deepEqual(r.back, { px: 'photo', label: '배경 지우기' });
+    assert.deepEqual(r.stale, { px: 'photo', label: '배경 지우기' });
+    assert.equal(r.w1, r.w0, 'second finger must not move the box'); assert.ok(r.w2 < r.w0 - 30, `first finger resizes ${r.w0}→${r.w2}`);
+    assert.ok(r.hs.every(v => v >= 44), 'handle size ' + r.hs);
+  });
+
+  await check('v5.4 반박 검토 반영: 되돌리기 keeps a new outfit that got a wear elsewhere meanwhile; a crop box narrower than the minimum stays inside the photo when a handle moves; 적용 finishing after 취소 does not close or answer the next photo', async page => {
+    const r = await page.evaluate(async () => {
+      // 1) 저장 → (다른 탭처럼) DB에서 직접 오늘 착용 추가 → 되돌리기: 코디는 남는다
+      await basic(); goto('코디 추천'); recommend(); await sleep(50);
+      document.querySelector('#result .recsave').click(); await sleep(300);
+      const undoBtn = document.querySelector('#appToast button');
+      const o0 = (await outfitsDB())[0];
+      await transaction(['outfits'], 'readwrite', tx => tx.objectStore('outfits').put({ ...o0, worn: [localDateStr()] }));
+      undoBtn.click(); await sleep(300);
+      const kept = (await outfitsDB()).map(o => o.worn.length), msg = toastText();
+      // 2) 좁은 상자(배경 지우기가 맞춘 왼쪽 위 상자) → 왼쪽 위 손잡이를 움직여도 사진 안
+      const mk = (w, h, col) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.fillStyle = col; x.fillRect(0, 0, w, h); return new Promise(r => c.toBlob(r, 'image/jpeg', .9)); };
+      window.BGR = { supported: () => true, remove: async src => { const c = document.createElement('canvas'); c.width = src.width; c.height = src.height; c.getContext('2d').drawImage(src, 0, 0); return { canvas: c, box: { x: 0, y: 0, w: 10, h: 10 } }; } };
+      let p = PHOTO.edit(await mk(300, 200, '#c33')); await sleep(150);
+      document.getElementById('peBg').click(); await sleep(100);
+      const h = document.querySelector('#peBox [data-h=nw]'), hb = h.getBoundingClientRect();
+      h.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, clientX: hb.left + 24, clientY: hb.top + 24 }));
+      window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 1, clientX: hb.left + 30, clientY: hb.top + 30 }));
+      window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }));
+      const cv = document.getElementById('peCanvas').getBoundingClientRect(), bx = document.getElementById('peBox').getBoundingClientRect();
+      const inside = bx.left >= cv.left - 0.5 && bx.top >= cv.top - 0.5 ? true : [bx.left, bx.top, cv.left, cv.top, document.getElementById("peBox").style.left];
+      document.getElementById('peOk').click(); const out = await blobImage(await p);
+      // 3) 적용 중 취소 → 다음 사진은 열린 채, 앞 사진의 결과는 버린다
+      const orig = HTMLCanvasElement.prototype.toBlob; let release;
+      const hold = new Promise(r => { release = r; });
+      HTMLCanvasElement.prototype.toBlob = function (cb, ...a) { hold.then(() => orig.call(this, cb, ...a)); };
+      const pa = PHOTO.edit(await (async () => { HTMLCanvasElement.prototype.toBlob = orig; const b = await mk(200, 200, '#36c'); HTMLCanvasElement.prototype.toBlob = function (cb, ...a) { hold.then(() => orig.call(this, cb, ...a)); }; return b; })()); await sleep(150);
+      document.getElementById('peOk').click(); await sleep(30);
+      document.getElementById('peCancel').click(); const ra = await pa;
+      HTMLCanvasElement.prototype.toBlob = orig;
+      let rbDone = false; const pb = PHOTO.edit(await mk(120, 80, '#3a3')).then(v => { rbDone = true; return v; }); await sleep(150);
+      release(); await sleep(200);
+      const stillOpen = document.getElementById('peModal').classList.contains('open'), early = rbDone;
+      document.getElementById('peCancel').click(); const rb = await pb;
+      return { kept, msg, inside, out: [out.naturalWidth, out.naturalHeight], ra, stillOpen, early, rb };
+    });
+    assert.deepEqual(r.kept, [1], 'outfit with an outside wear must stay'); assert.match(r.msg, /남겨 두었습니다/);
+    assert.equal(r.inside, true, JSON.stringify(r)); assert.deepEqual(r.out, [11, 11]);
+    assert.equal(r.ra, null); assert.equal(r.stillOpen, true, JSON.stringify(r)); assert.equal(r.early, false); assert.equal(r.rb, null);
+  });
+
   await browser.close(); server.close();
   console.log(`\n${passed} passed, ${failed} failed. Chromium only — iPhone Safari itself is not verified by this suite.`);
   process.exit(failed ? 1 : 0);

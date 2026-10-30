@@ -324,6 +324,63 @@
     if(!noAsk&&OF.hasDraft()&&!confirm('만들던 코디 초안을 추천 결과로 바꿀까요?'))return false;
     setDraft(next,'',null);view='builder';gotoOutfitTab();say('추천을 코디 칸에 담았습니다. 바꿀 칸을 누른 뒤 저장하세요.');return true;
   }
+  // v5.4 추천 카드 '입었어요'·'저장': 같은 칸의 코디가 있으면 그것을 쓰고(보관하지 않은 것 먼저), 없으면 새로 저장한다.
+  // '입었어요'는 저장과 오늘 착용 기록(markWorn과 같은 규칙)을 한 트랜잭션으로. 되돌리기는 새로 만든 코디는 지우고, 있던 코디는 오늘 날짜만 빼고,
+  // 옷의 wearCount·lastWorn은 그 사이 다시 바뀌지 않았을 때만 옛 값으로 돌린다(unmarkWorn과 달리 방금 올린 횟수도 되돌림)
+  async function saveRec(slots,wearIt){
+    const next={...EMPTY};for(const k in EMPTY){const id=slots&&slots[k];next[k]=id&&byId(id)?id:null}
+    if(!Object.values(next).some(Boolean))return say('저장할 추천 결과가 없습니다');
+    const date=today(),name=defaultName();let res=null;
+    try{
+      await transaction(['outfits','clothes'],'readwrite',tx=>{
+        const os=tx.objectStore('outfits'),cs=tx.objectStore('clothes'),q=os.getAll();
+        q.onsuccess=()=>{
+          const all=q.result||[],same=all.filter(o=>sameSlots(norm(o).slots,next)),hit=same.find(o=>!o.archived)||same[0]||null;
+          const rec=hit?{...hit}:{id:crypto.randomUUID(),name,slots:next,createdAt:Date.now(),updatedAt:Date.now(),worn:[]};
+          res={id:rec.id,created:!hit,name:norm(rec).name,archived:!!rec.archived,wore:false,dup:false,prev:[],snap:null};
+          if(wearIt){
+            const worn=Array.isArray(rec.worn)?rec.worn.filter(isDate):[];
+            if(worn.includes(date))res.dup=true;
+            else{
+              rec.worn=[...new Set([...worn,date])].sort();res.wore=true;
+              const counted=new Set();for(const x of all)if(x.id!==rec.id&&Array.isArray(x.worn)&&x.worn.includes(date))slotIds(norm(x)).forEach(c=>counted.add(c));
+              const ts=Date.now();
+              for(const cid of slotIds(norm(rec))){const g=cs.get(cid);g.onsuccess=()=>{const c=g.result;if(!c)return;
+                const sameDay=counted.has(cid)||(c.lastWorn&&fmtDate(new Date(c.lastWorn))===date);
+                const wc=(c.wearCount||0)+(sameDay?0:1),lw=Math.max(c.lastWorn||0,ts);
+                res.prev.push({id:cid,wearCount:c.wearCount,lastWorn:c.lastWorn,wc,lw});cs.put({...c,wearCount:wc,lastWorn:lw})}}
+            }
+          }
+          if(res.created||res.wore)os.put(rec);
+          res.snap={worn:JSON.stringify(rec.worn||[]),updatedAt:rec.updatedAt,favAt:rec.favAt,archivedAt:rec.archivedAt};
+        };
+      });
+      if(res.wore&&typeof clearTomb==='function')clearTomb('w',`${res.id}|${date}`);
+      if(res.wore)await refresh();else await refreshOutfits();
+      if(typeof restoreRecommendation==='function'&&$('recommend')&&$('recommend').classList.contains('active'))restoreRecommendation();
+      const where=res.archived?' (보관함)':'';
+      const msg=wearIt?(res.dup?`'${res.name}'${where}은(는) 오늘 이미 기록되어 있습니다`:res.created?`'${res.name}'으로 저장하고 오늘 입은 것으로 기록했습니다`:`저장된 코디 '${res.name}'${where}에 오늘 입은 것으로 기록했습니다`)
+        :res.created?`'${res.name}'으로 저장했습니다`:`이미 저장된 코디입니다: '${res.name}'${where}`;
+      const r=res;if(r.created||r.wore)window.toast(msg,'되돌리기',()=>locked(()=>undoRec(r,date)));else say(msg);
+    }catch(e){reportError(e,wearIt?'착용 기록을 저장하지 못했습니다.':'코디를 저장하지 못했습니다.')}
+  }
+  async function undoRec(r,date){
+    try{
+      await transaction(['outfits','clothes'],'readwrite',tx=>{
+        const os=tx.objectStore('outfits'),cs=tx.objectStore('clothes');
+        // 새로 만든 코디라도 그 사이(다른 탭 등에서) 착용·이름·별표·보관이 바뀌었으면 지우지 않고 오늘 기록만 뺀다
+        const q=os.get(r.id);q.onsuccess=()=>{const o=q.result;if(!o)return;const sn=r.snap||{};
+          const untouched=JSON.stringify(o.worn||[])===sn.worn&&o.updatedAt===sn.updatedAt&&o.favAt===sn.favAt&&o.archivedAt===sn.archivedAt;
+          if(r.created&&untouched){os.delete(r.id);r.removed=true}
+          else if(r.wore){os.put({...o,worn:(Array.isArray(o.worn)?o.worn:[]).filter(d=>d!==date)});r.unworn=true}};
+        for(const p of r.prev){const g=cs.get(p.id);g.onsuccess=()=>{const c=g.result;if(c&&c.wearCount===p.wc&&c.lastWorn===p.lw)cs.put({...c,wearCount:p.wearCount,lastWorn:p.lastWorn===undefined?null:p.lastWorn})}}
+      });
+      if(typeof addTomb==='function'){if(r.removed)addTomb('o',r.id);else if(r.unworn)addTomb('w',`${r.id}|${date}`)}
+      if(r.wore)await refresh();else await refreshOutfits();
+      if(typeof restoreRecommendation==='function'&&$('recommend')&&$('recommend').classList.contains('active'))restoreRecommendation();
+      say(r.created&&!r.removed?'그 사이 코디가 바뀌어 코디는 남겨 두었습니다'+(r.unworn?'(오늘 기록만 뺐습니다)':''):'되돌렸습니다');
+    }catch(e){reportError(e,'되돌리지 못했습니다.')}
+  }
   // 코디 탭 '추천으로 채우기': 코디 추천 탭의 목적·날씨 설정으로 가장 좋은 조합부터, 누를 때마다 상의·하의가 다른 조합(설정마다 따로 기억)
   let fill={key:'',seen:new Set(),avoid:{tops:new Set(),bottoms:new Set(),items:new Set()},last:null};
   const sameSlots=(a,b)=>!!a&&!!b&&Object.keys(EMPTY).every(k=>(a[k]||null)===(b[k]||null));
@@ -650,6 +707,7 @@
     fav(id,on){locked(()=>setFlag(id,'fav',on))},
     archive(id,on){locked(()=>setFlag(id,'archived',on))},
     wear(id){locked(()=>markWorn(id,today()))},
+    saveRec(slots,wearIt){return locked(()=>saveRec(slots,wearIt))},
     rename(id){locked(()=>renameOutfit(id))},
     del(id){locked(()=>deleteOutfit(id))},
     month(k){calMonth=shiftMonth(calMonth,k);calDay=null;renderOutfitPage()},
