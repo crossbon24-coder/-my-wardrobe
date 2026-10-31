@@ -107,6 +107,13 @@
     const m=document.createElement('div');m.id='oflModal';m.className='modal';m.onclick=e=>{if(e.target===m)OFL.close()};
     m.innerHTML='<div class="sheet" role="dialog" aria-modal="true" aria-label="코디 상세"><div id="oflDetail"></div></div>';document.body.appendChild(m);
   }
+  // v6.0 코디 상세의 이번 달 달력: 입은 날은 초록, 오늘은 테두리
+  function monthHTML(o,t){
+    const [y,m]=t.split('-').map(Number),first=new Date(y,m-1,1).getDay(),n=new Date(y,m,0).getDate(),worn=new Set(o.worn),pre=t.slice(0,8);
+    let cells='<span></span>'.repeat(first),cnt=0;
+    for(let d=1;d<=n;d++){const k=pre+String(d).padStart(2,'0'),w=worn.has(k);if(w)cnt++;cells+=`<span${w?' class="w"':k===t?' class="t"':''}>${d}</span>`}
+    return `<div class="ofl-month" role="group" aria-label="${m}월 입은 날 ${cnt}일"><div class="ofl-month-h"><b>${m}월 착용</b><span class="small muted">${cnt?`${cnt}일 입음`:'이번 달은 아직'}</span></div><div class="ofl-month-g" aria-hidden="true">${[...'일월화수목금토'].map(x=>`<i>${x}</i>`).join('')}${cells}</div></div>`;
+  }
   function detailHTML(o){
     const u=U(),t=u.today(),wornToday=o.worn.includes(t),days=o.worn.slice().reverse();
     const rows=u.SLOTS.filter(s=>o.slots[s.key]!==null&&o.slots[s.key]!==undefined).map(s=>{const c=u.byId(o.slots[s.key]);
@@ -117,6 +124,7 @@
       <div class="ofl-detail-fl">${u.flatLayHTML(o.slots)}</div>
       <p class="small muted" style="margin:10px 0 4px">${o.createdAt>0?`저장 ${esc(u.fmtDate(new Date(o.createdAt)))} · `:''}${o.worn.length?`${o.worn.length}회 입음 · 마지막 ${esc(md(u.lastWorn(o)))}`:'아직 입은 기록이 없습니다'}</p>
       ${days.length?`<p class="small" style="margin:0 0 6px"><b>입은 날</b> ${days.slice(0,8).map(d=>esc(md(d))).join(', ')}${days.length>8?` 외 ${days.length-8}일`:''}</p>`:''}
+      ${monthHTML(o,t)}
       <div class="row ofl-main"><button type="button" ${wornToday?'disabled':''} onclick="OF.wear(${arg(o.id)})">${wornToday?'오늘 입음 ✓':'오늘 입음'}</button><button type="button" class="secondary" onclick="OFL.edit(${arg(o.id)})">고치기</button></div>
       <div class="ofl-items">${rows||'<p class="small muted">든 옷이 없습니다.</p>'}</div>
       <div class="actions ofl-menu"><button type="button" class="ghost" onclick="OF.rename(${arg(o.id)})">이름 바꾸기</button><button type="button" class="ghost" onclick="OF.archive(${arg(o.id)},${o.archived?'false':'true'})">${o.archived?'보관 해제':'보관'}</button><button type="button" class="ghost danger" onclick="OF.del(${arg(o.id)})">삭제</button></div>`;

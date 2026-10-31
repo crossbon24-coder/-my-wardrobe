@@ -88,6 +88,7 @@
 | 2026-10-20 | Claude | v5.2 목록용 작은 사진: thumbs.js 신설, 별도 IndexedDB wardrobeThumbs(백업·wardrobeDB 그대로), 360px, 60KB 미만 원본 사용, 그려진 뒤 하나씩 만들어 자리만 교체, 옷장·코디 목록·고르기·추천 카드에 적용. 검사 regression 37·outfits 20·features 114 통과 |
 | 2026-10-20 | Claude | v5.3 사진 다듬기: photo-edit.js(자르기·회전, 등록 목록·옷 창), bg-remove.js(U²-Netp 4.6MB 저장소에 포함, onnxruntime-web 1.30.0 SRI, 한 스레드). 데이터 형식 변경 없음. 검사 regression 37·outfits 20·features 117 통과 |
 | 2026-10-30 | Claude | 실사용 검토(Claude·Codex CLI·Gemini Antigravity CLI, 읽기 전용) 12가지 중 사용자 선택분으로 v5.4: 추천 카드 입었어요·저장·고치기(outfits.js saveRec·undoRec), 추천 목적·날씨 기억(평일 출근 기본), 사진 다듬기 고침(못 찾으면 그대로·배경 되돌리기·취소 뒤 결과 무시·두 번째 손가락 무시·손잡이 48px). 데이터 형식 변경 없음. Codex 반박 검토 3건(되돌리기가 다른 탭 착용을 지움·좁은 상자가 사진 밖으로·적용 중 취소 경합)과 상자·사진 어긋남 1건 반영. 검사 regression 37·outfits 20·features 121 통과 |
+| 2026-10-31 | Claude | v6.0 디자인 정리(사용자가 Claude Design 시안을 고름): 공통 톤·화면별 제목·탭 아이콘, 추천 목적·날씨 칩(숨은 선택 상자 유지)과 카드 배치, 옷장 붙여넣기 한 줄, 코디 카드 모양, 코디 상세 이번 달 달력. 데이터 형식 변경 없음. 검사 features 122·outfits 20·regression 37 통과, iPhone 미확인 |
 
 ## 6. 현재 작업 중
 

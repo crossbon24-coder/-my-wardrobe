@@ -1999,6 +1999,28 @@ async function check(name, fn, opts) {
     assert.equal(r.ra, null); assert.equal(r.stillOpen, true, JSON.stringify(r)); assert.equal(r.early, false); assert.equal(r.rb, null);
   });
 
+  await check('v6.0 디자인: each tab has its own title; 목적·날씨 are chips that mirror the hidden selects, a chip tap recommends at once and is remembered; the 입었어요 button spans the card; the outfit detail shows this month with today\'s wear in green', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); const h1 = () => document.querySelector('header h1').textContent, titles = [h1()];
+      for (const t of ['코디', '추천', '더보기']) { [...document.querySelectorAll('nav button')].find(b => b.textContent.trim() === t).click(); titles.push(h1()); }
+      goto('코디 추천'); $('occasion').value = '1'; $('weather').value = 'normal'; syncRecChips();
+      const chips = [...document.querySelectorAll('#occChips .chip, #wxChips .chip')].map(b => b.textContent + (b.classList.contains('on') ? '*' : ''));
+      const before = document.querySelectorAll('#result .reccard').length, goShown = !!document.getElementById('recGo').getClientRects().length;
+      [...document.querySelectorAll('#wxChips .chip')].find(b => b.textContent === '추운 날').click(); await sleep(50);
+      const after = { cards: document.querySelectorAll('#result .reccard').length > 0, weather: $('weather').value, saved: JSON.parse(localStorage.getItem('wardrobe.recPrefs')).w, lit: document.querySelector('#wxChips .chip.on').textContent, goHidden: !document.getElementById('recGo').getClientRects().length };
+      const card = document.querySelector('#result .reccard'), wear = card.querySelector('.recwear').getBoundingClientRect(), row = card.querySelector('.actions').getBoundingClientRect();
+      card.querySelector('.recwear').click(); await sleep(300);
+      const o = (await outfitsDB())[0]; OFL.open(o.id); await sleep(50);
+      const m = document.querySelector('#oflDetail .ofl-month'), today = new Date().getDate();
+      return { titles, chips, before, goShown, after, full: Math.abs(wear.width - row.width) < 2, month: m && [m.querySelectorAll('.w').length, m.querySelector('.w').textContent === String(today), /1일 입음/.test(m.textContent)] };
+    });
+    assert.deepEqual(r.titles, ['내 옷장', '코디', '오늘 뭐 입지?', '더보기']);
+    assert.deepEqual(r.chips, ['주말·편한 외출*', '데이트', '출근·격식', '보통 날씨*', '더운 날', '추운 날']);
+    assert.equal(r.before, 0); assert.equal(r.goShown, true);
+    assert.deepEqual(r.after, { cards: true, weather: 'cold', saved: 'cold', lit: '추운 날', goHidden: true });
+    assert.equal(r.full, true); assert.deepEqual(r.month, [1, true, true]);
+  });
+
   await browser.close(); server.close();
   console.log(`\n${passed} passed, ${failed} failed. Chromium only — iPhone Safari itself is not verified by this suite.`);
   process.exit(failed ? 1 : 0);
