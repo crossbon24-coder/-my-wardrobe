@@ -402,6 +402,21 @@ async function check(name, fn, opts) {
     assert.deepEqual(r, { n: 3, distinct: true, moved: true, coldOuter: 'coat', formalOuter: 'coat', formalBag: 'bag', hotOuter: null, normalBag: null, cards: 3, allBlack: 3, sameChroma: 2 });
   });
 
+  await check('Recommend: on normal-weather weekends and dates a spring/fall jacket is the outer (not the winter padding); none when only winter outers; the reason says so', async page => {
+    const r = await page.evaluate(async () => {
+      const specs = [];
+      for (let i = 0; i < 4; i++) specs.push({ id: 'top' + i, category: '상의', memo: '상의' + i }, { id: 'bot' + i, category: '하의', memo: '하의' + i });
+      specs.push({ id: 'shoe', category: '신발', memo: '신발' }, { id: 'jk', category: '아우터', memo: '재킷', season: '봄/가을' }, { id: 'pd', category: '아우터', memo: '패딩', season: '겨울' });
+      await seed(specs); goto('코디 추천');
+      const run = (o, w) => { $('occasion').value = String(o); $('weather').value = w; recommend(); return recommendations.map(c => c.slots.outer); };
+      const weekend = run(1, 'normal'), why = document.querySelector('#result .reason').textContent, date = run(2, 'normal'), hot = run(1, 'hot'), cold = run(1, 'cold')[0];
+      clothes.find(c => c.id === 'jk').archived = true; const winterOnly = run(1, 'normal');
+      return { weekend, date, hot, cold, winterOnly, why };
+    });
+    assert.ok(r.weekend.every(o => o === 'jk'), JSON.stringify(r.weekend)); assert.ok(r.date.every(o => o === 'jk'), JSON.stringify(r.date));
+    assert.ok(r.hot.every(o => o === null)); assert.equal(r.cold, 'pd'); assert.ok(r.winterOnly.every(o => o === null), JSON.stringify(r.winterOnly)); assert.match(r.why, /간절기 아우터/);
+  });
+
   await check('코디 탭 추천으로 채우기 fills the slots and gives a different combo on the next press', async page => {
     const r = await page.evaluate(async () => {
       await basic(); goto('코디'); await sleep(20); OF.fillRec(); await sleep(50);

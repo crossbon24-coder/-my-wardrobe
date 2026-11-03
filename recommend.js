@@ -65,10 +65,12 @@ function recommendCombos(t,w,seen=new Set(),count=3,avoid={},opts={}){
   Tp.forEach((a,ia)=>Bp.forEach((b,ib)=>{const sh=shoeFor.get(b),raw=S(a)+S(b)+colorScore(a.color,b.color)+fitScore(a,b)*PAIR_FIT+(sh?sh.score:0)+pinRef(a)+pinRef(b),cut=pen?Math.min(PEN_CAP,pen.pair(a.id+'|'+b.id)+PI(a)+PI(b)):0;
     pairs.push({a,b,ia,ib,sh:sh&&sh.item,raw,score:raw-cut,worn:(a.lastWorn||0)+(b.lastWorn||0)})}));
   pairs.sort((x,y)=>y.score-x.score||x.worn-y.worn||x.ia-y.ia||x.ib-y.ib);
-  const tp=opts.purpose??t,needOuter=pin==='outer'||w==='cold'||(tp>=3&&w!=='hot'),wantBag=pin==='bag'||tp>=3,out=[],usedT=new Set(),usedB=new Set(),usedI=new Set();
+  // 아우터: 추운 날·출근(더운 날 제외)·고정이면 넣고, 보통 날씨에는 날씨에 맞는(봄/가을·사계절) 아우터가 있으면 목적과 상관없이 넣는다
+  // (v6.1: 보통 날씨 주말·데이트에 간절기 외투가 한 번도 나오지 않았다). 보통 날씨에는 맞는 아우터만 후보로 쓰고, 없으면 출근일 때만 예전처럼 아무 아우터나 쓴다
+  const tp=opts.purpose??t,baseOuter=pin==='outer'||w==='cold'||(tp>=3&&w!=='hot'),lightO=w==='normal'&&pin!=='outer'?Op.filter(x=>weatherScore(x,w)>0):[],OpR=lightO.length?lightO:baseOuter?Op:[],needOuter=OpR.length>0,wantBag=pin==='bag'||tp>=3,out=[],usedT=new Set(),usedB=new Set(),usedI=new Set();
   const take=(p,kind)=>{
     const key=p.a.id+'|'+p.b.id;usedT.add(p.a.id);usedB.add(p.b.id);
-    const o=needOuter&&Op.length?bestFor(Op,[p.a],avI,usedI,w==='cold'?x=>weatherScore(x,w):undefined):null,sh=Sp.length?bestFor(Sp,[p.b,p.a],avI,usedI):null,g=wantBag&&Gp.length?bestFor(Gp,[p.b],avI,usedI):null;
+    const o=needOuter?bestFor(OpR,[p.a],avI,usedI,w==='cold'?x=>weatherScore(x,w):undefined):null,sh=Sp.length?bestFor(Sp,[p.b,p.a],avI,usedI):null,g=wantBag&&Gp.length?bestFor(Gp,[p.b],avI,usedI):null;
     for(const x of [o,sh,g])if(x)usedI.add(x.item.id);
     out.push({key,score:p.score,kind:kind||'',slots:{outer:o?o.item.id:null,top:p.a.id,bottom:p.b.id,shoes:sh?sh.item.id:null,bag:g?g.item.id:null}});
   };
