@@ -199,7 +199,7 @@ async function check(name, fn) {
       await refresh(); goto('코디'); await sleep(50);
       const txt = document.getElementById('outfit').innerText;
       const inp = document.getElementById('closetSearch'); inp.value = '니트'; inp.dispatchEvent(new Event('input'));
-      return { rendered: txt.includes('저장한 코디'), injected: !!document.querySelector('#outfit img[src="x"]'), search: [...document.querySelectorAll('#items .item')].filter(e => !e.hidden).length, alerts };
+      return { rendered: txt.includes('모아보기'), injected: !!document.querySelector('#outfit img[src="x"]'), search: [...document.querySelectorAll('#items .item')].filter(e => !e.hidden).length, alerts };
     });
     assert.deepEqual(r, { rendered: true, injected: false, search: 1, alerts: [] });
   });

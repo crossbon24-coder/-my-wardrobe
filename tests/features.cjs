@@ -1432,7 +1432,7 @@ async function check(name, fn, opts) {
         st.put({ id: 'ar', name: '보관 코디', slots: { top: 't3', bottom: 'b1' }, createdAt: monthStart(0) + 100, worn: [], archived: true }); });
       await refresh(); goto('코디'); await sleep(30);
       const ids = () => [...document.querySelectorAll('#oflBody .ofl-card')].map(e => e.dataset.of);
-      const head = { badge: document.querySelector('#outfit .of-head .badge').textContent, newBtn: !!document.querySelector('#outfit .of-new'), builder: !!document.getElementById('outfitName') };
+      const head = { viewChips: document.querySelectorAll('#outfit .of-head .chip').length, outerCard: !!document.querySelector('#outfit > .card'), newBtn: !!document.querySelector('#outfit .of-head .of-new'), builder: !!document.getElementById('outfitName') };
       const all = ids(), groups = [...document.querySelectorAll('#oflBody .ofl-group')].map(g => ({ open: g.classList.contains('open'), text: g.querySelector('.ofl-ghead').textContent.trim(), n: g.querySelectorAll('.ofl-card').length }));
       const cols = getComputedStyle(document.querySelector('#oflBody .ofl-grid')).gridTemplateColumns.split(' ').length, more = !!document.querySelector('#oflBody .ofl-group .ofl-more');
       document.querySelectorAll('#oflBody .ofl-group')[2].querySelector('.ofl-ghead').click(); const oldShown = ids().includes('old');
@@ -1444,7 +1444,7 @@ async function check(name, fn, opts) {
       OFL.sort('last'); const lastGroups = [...document.querySelectorAll('#oflBody .ofl-ghead b')].map(b => b.textContent);
       return { head, firstFav: all[0], archivedShown: all.includes('ar'), favTimes: all.filter(x => x === 'fv').length, groups, cols, more, oldShown, afterMore, search, focusKept, archived, stale, favOnly, backToAll, lastGroups, sortSaved: localStorage.getItem('wardrobe.outfitSort') };
     });
-    assert.deepEqual(r.head, { badge: '38개', newBtn: true, builder: false });
+    assert.deepEqual(r.head, { viewChips: 2, outerCard: false, newBtn: true, builder: false }); // v6.2: 안쪽 제목·바깥 흰 카드 없이 모아보기·캘린더와 '+ 새 코디'가 한 줄
     assert.equal(r.firstFav, 'fv'); assert.equal(r.archivedShown, false); assert.equal(r.favTimes, 1);
     assert.deepEqual(r.groups.map(g => [g.open, g.n]), [[true, 30], [true, 1], [false, 0]]); assert.match(r.groups[0].text, /35개/); assert.match(r.groups[2].text, /1개/);
     assert.equal(r.cols, 3); assert.equal(r.more, true); assert.equal(r.oldShown, true); assert.equal(r.afterMore, 35);
@@ -1659,8 +1659,8 @@ async function check(name, fn, opts) {
     });
     assert.equal(r.overlap, false); assert.match(r.empty, /모든 코디가 보관함에 있습니다/); assert.equal(r.chip, 'archived');
     await page.setViewportSize({ width: 320, height: 568 });
-    const b = await page.evaluate(async () => { OFL.chip('all'); await sleep(20); const e = document.querySelector('#outfit .of-head .badge'); return { lines: e.getClientRects().length, search: document.getElementById('oflSearch').getBoundingClientRect().width }; });
-    assert.equal(b.lines, 1); assert.ok(b.search >= 120, `search ${b.search}px`);
+    const b = await page.evaluate(async () => { OFL.chip('all'); await sleep(20); const n = document.querySelector('#outfit .of-new').getBoundingClientRect(), c = document.querySelector('#outfit .of-head .chip').getBoundingClientRect(); return { sameRow: Math.abs((n.top + n.bottom) / 2 - (c.top + c.bottom) / 2) < 6, oneLine: n.height < 52, search: document.getElementById('oflSearch').getBoundingClientRect().width }; });
+    assert.equal(b.sameRow, true); assert.equal(b.oneLine, true); assert.ok(b.search >= 120, `search ${b.search}px`);
   });
 
   await check('Renaming the linked outfit or clearing the name field keeps the draft "clean": deleting that outfit leaves no phantom draft; a newer favourite time survives merges in any order', async page => {
@@ -2034,6 +2034,59 @@ async function check(name, fn, opts) {
     assert.equal(r.before, 0); assert.equal(r.goShown, true);
     assert.deepEqual(r.after, { cards: true, weather: 'cold', saved: 'cold', lit: '추운 날', goHidden: true });
     assert.equal(r.full, true); assert.deepEqual(r.month, [1, true, true]);
+  });
+
+  await check('v6.2 화면 손질: one-line backup strip lifts the first garment photo; short closet search placeholder; outfit list without the card-in-card; recommendation photos fill their cells', async page => {
+    const r = await page.evaluate(async () => {
+      await basic(); goto('옷장'); window.scrollTo(0, 0); await sleep(30);
+      const strip = document.querySelector('#safety .safety.slim'), first = document.querySelector('#items .item').getBoundingClientRect().top;
+      const srch = document.getElementById('closetSearch');
+      await transaction(['outfits'], 'readwrite', tx => tx.objectStore('outfits').put({ id: 'o1', name: 'A', slots: { top: 't1', bottom: 'b1' }, createdAt: Date.now(), worn: [] })); await refresh();
+      goto('코디'); await sleep(30);
+      const noCard = !document.querySelector('#outfit > .card'), cardBg = getComputedStyle(document.querySelector('#oflBody .ofl-card')).backgroundColor;
+      OF.view('cal'); await sleep(20); const calCard = !!document.querySelector('#outfit > .card .cal-cell'); OF.view('list');
+      goto('코디 추천'); recommend(); await sleep(30);
+      const item = document.querySelector('#result .recitem'), img = item.querySelector('img'), rc = document.querySelector('#result .reccard');
+      return { strip: !!strip && strip.getBoundingClientRect().height < 56, stripText: !!strip && strip.innerText.includes('백업한 기록이 없습니다'), first: Math.round(first), placeholder: srch.placeholder, title: srch.title, noCard, cardBg, calCard,
+        pad: getComputedStyle(item).paddingLeft, fill: img.getBoundingClientRect().width >= item.clientWidth - 1, recBorder: getComputedStyle(rc).borderLeftWidth };
+    });
+    assert.equal(r.strip, true); assert.equal(r.stripText, true); assert.ok(r.first < 330, `first photo at ${r.first}px`);
+    assert.equal(r.placeholder, '검색'); assert.match(r.title, /브랜드/);
+    assert.equal(r.noCard, true); assert.equal(r.cardBg, 'rgb(255, 255, 255)', 'outfit cards are white on the page background'); assert.equal(r.calCard, true);
+    assert.equal(r.pad, '0px'); assert.equal(r.fill, true); assert.equal(r.recBorder, '0px');
+  });
+
+  await check('v6.2 옷장 결산: per-garment year counts come from outfit wear days (same day counted once, other years ignored), colours and months follow them, unworn uses lastWorn too, and the 7-slide viewer pages and closes', async page => {
+    const r = await page.evaluate(async () => {
+      const y = new Date().getFullYear(), jan1 = `${y}-01-01`, old = `${y - 1}-06-01`, thisYearMs = new Date(y, 0, 1, 12).getTime();
+      await seed([
+        { id: 't1', category: '상의', memo: '네이비 니트', color: '네이비', wearCount: 2 }, { id: 't2', category: '상의', memo: '흰 셔츠', color: '흰색', wearCount: 40 },
+        { id: 't3', category: '상의', memo: '옷장에서만 입은 티', wearCount: 1, lastWorn: thisYearMs }, { id: 'b1', category: '하의', memo: '데님', color: '블루' },
+        { id: 'z1', category: '하의', memo: '보관한 바지' }, { id: 'z2', category: '상의', memo: '작년에 입은 셔츠', wearCount: 3, lastWorn: new Date(y - 1, 5, 1).getTime() },
+      ]);
+      const emptyFallback = YR.compute(y); // 올해 코디 기록이 없으면 전체 기간 착용 횟수로
+      const z1 = (await clothesDB()).find(c => c.id === 'z1');
+      await transaction(['clothes', 'outfits'], 'readwrite', tx => { const o = tx.objectStore('outfits');
+        o.put({ id: 'A', name: '코디A', slots: { top: 't1', bottom: 'b1' }, createdAt: 1, worn: [jan1, old] });
+        o.put({ id: 'B', name: '코디B', slots: { top: 't1', bottom: 'b1', acc: 't1' }, createdAt: 2, worn: [jan1] });
+        o.put({ id: 'C', name: '코디C', slots: { top: 't2', bottom: 'gone' }, createdAt: 3, worn: [old], archived: true });
+        tx.objectStore('clothes').put({ ...z1, archived: true }); });
+      await refresh();
+      const d = YR.compute(y), top = d.ranked.map(c => [c.id, d.score(c)]);
+      goto('더보기'); const label = document.getElementById('yrOpen').textContent;
+      document.getElementById('yrOpen').click(); await sleep(30);
+      const s0 = YR.state(), slides = document.querySelectorAll('#yrTrack .yr-slide').length; YR.go(1); await sleep(400); const s1 = YR.state();
+      const text = document.getElementById('yrTrack').innerText;
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); const closed = !YR.state().open && document.getElementById('yrModal').hidden && !document.documentElement.classList.contains('yr-lock');
+      return { fb: [emptyFallback.byOutfit, emptyFallback.ranked[0].id], byOutfit: d.byOutfit, top, days: d.days, jan: d.months[0], outfits: d.outfitRank.map(x => [x.o.id, x.n]), colors: d.colorRank, unworn: d.unworn.map(c => c.id).sort(), label, s0, slides, s1, text: [text.includes('네이비 니트'), text.includes('코디A')], closed };
+    });
+    assert.deepEqual(r.fb, [false, 't2'], 'no outfit wear this year → all-time wearCount ranking');
+    assert.equal(r.byOutfit, true); assert.deepEqual(r.top, [['t1', 1], ['b1', 1]], 'two outfits on the same day count once; last year and an outfit worn only last year are ignored');
+    assert.equal(r.days, 1); assert.equal(r.jan, 1); assert.deepEqual(r.outfits, [['A', 1], ['B', 1]]);
+    assert.deepEqual(r.colors, [['네이비', 1], ['블루', 1]]);
+    assert.deepEqual(r.unworn, ['t2', 'z2'], 'closet-only wear this year (lastWorn) is not unworn; archived garments are left out');
+    assert.match(r.label, new RegExp(`${new Date().getFullYear()} 옷장 결산`));
+    assert.deepEqual([r.s0.open, r.s0.idx, r.s0.count, r.slides, r.s1.idx], [true, 0, 7, 7, 1]); assert.deepEqual(r.text, [true, true]); assert.equal(r.closed, true);
   });
 
   await browser.close(); server.close();

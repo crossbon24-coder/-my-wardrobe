@@ -140,15 +140,14 @@
     if(!calMonth){calMonth=today().slice(0,7);calAutoMonth=calMonth}
     sanitizeDraft();
     if(view==='builder'){sec.innerHTML=builderHTML();return}
-    const all=outfits.map(norm),live=all.filter(o=>!o.archived).length;
+    const all=outfits.map(norm);
     let body='';
     if(view==='cal'){const wornByDate={};for(const o of all)for(const d of o.worn)(wornByDate[d]=wornByDate[d]||[]).push(o);body=calHTML(wornByDate)}
     else body=window.OFL?OFL.html():'<p class="small">코디 목록 기능 파일을 불러오지 못했습니다. 강제 새로고침 후 다시 시도해주세요.</p>';
-    sec.innerHTML=`<div class="card"><div class="row of-head"><h2>저장한 코디 <span class="badge">${live}개</span></h2><button type="button" class="of-new" onclick="OF.newOutfit()">+ 새 코디</button></div>
+    // v6.2 머리말 제목 '코디' 아래에 같은 제목을 또 두지 않는다: 모아보기·캘린더와 '+ 새 코디'를 한 줄에, 목록은 바깥 흰 카드 없이 화면 폭을 다 쓴다(캘린더는 카드 안)
+    sec.innerHTML=`<div class="row of-head"><div class="chips" role="group" aria-label="코디 보기">${[['list','모아보기'],['cal','캘린더']].map(([k,l])=>`<button type="button" class="chip${view===k?' on':''}" aria-pressed="${view===k}" onclick="OF.view(${arg(k)})">${l}</button>`).join('')}</div><button type="button" class="of-new" onclick="OF.newOutfit()">+ 새 코디</button></div>
         ${resumeHTML()}
-        <div class="chips">${[['list','모아보기'],['cal','캘린더']].map(([k,l])=>`<button type="button" class="chip${view===k?' on':''}" onclick="OF.view(${arg(k)})">${l}</button>`).join('')}</div>
-        ${body}
-      </div>`;
+        ${view==='cal'?`<div class="card">${body}</div>`:`<div class="of-listwrap">${body}</div>`}`;
   }
   function refreshOutfitView(){if(outfitVisible())renderOutfitPage();else outfitDirty=true;if(window.OFL&&OFL.isOpen())OFL.renderDetail()}
 
@@ -415,7 +414,7 @@
   function installClosetTools(){
     const filters=$('filters');if(!filters||$('closetTools'))return;
     const div=document.createElement('div');div.id='closetTools';div.className='row';div.style.alignItems='center';
-    div.innerHTML=`<input id="closetSearch" type="search" placeholder="검색: 이름·종류·색·브랜드" aria-label="옷장 검색" autocomplete="off"><span id="closetSearchStat" class="small muted" style="flex:none" hidden></span><select id="closetSort" aria-label="옷장 정렬" style="flex:none;width:auto;margin:0"><option value="recent">최근 등록</option><option value="stale">오래 안 입은</option><option value="most">많이 입은</option><option value="color">색상</option></select><button type="button" id="densityBtn" class="secondary" style="flex:none">4열</button>`;
+    div.innerHTML=`<input id="closetSearch" type="search" placeholder="검색" title="이름·종류·색·브랜드로 찾기" aria-label="옷장 검색" autocomplete="off"><span id="closetSearchStat" class="small muted" style="flex:none" hidden></span><select id="closetSort" aria-label="옷장 정렬" style="flex:none;width:auto;margin:0"><option value="recent">최근 등록</option><option value="stale">오래 안 입은</option><option value="most">많이 입은</option><option value="color">색상</option></select><button type="button" id="densityBtn" class="secondary" style="flex:none">4열</button>`;
     filters.parentNode.insertBefore(div,filters);
     const items=$('items');
     if(items&&!$('closetNoMatch')){const p=document.createElement('p');p.id='closetNoMatch';p.className='empty';p.hidden=true;items.parentNode.insertBefore(p,items.nextSibling)}
@@ -536,7 +535,7 @@
 .of-item{display:flex;gap:10px;background:#f7f7f7;border-radius:15px;padding:9px;margin-top:8px}.of-related{margin:8px 0;background:#f7f7f7;border-radius:12px;padding:8px 10px}.of-related>summary{cursor:pointer;font-weight:700;font-size:14px}.of-rel-strip{display:flex;gap:8px;overflow-x:auto;padding:8px 0 2px;-webkit-overflow-scrolling:touch}.of-rel{flex:none;width:118px;background:#fff;border:1px solid #eee;border-radius:12px;padding:6px;color:#222;text-align:left;font-weight:400}.of-rel .of-thumb{width:100%}.of-flash{outline:3px solid #f59e0b;outline-offset:2px;transition:outline-color .4s}.of-rel-more p{margin:8px 0 0}.of-co{display:flex;gap:8px;overflow-x:auto;padding:2px 0}.of-co-item{flex:none;width:72px;font-size:11px;color:#555}.of-co-item img{width:72px;height:72px;object-fit:cover;border-radius:10px;display:block;background:#eee}.pitem{position:relative}.pitem .pcount{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.62);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px}
 .of-item.done{opacity:.45}
 .of-thumb{width:150px;flex:none}.of-info{min-width:0;flex:1;display:flex;flex-direction:column}.of-info .actions{margin-top:auto;flex-wrap:wrap}.of-info .actions button{flex:1 1 auto;white-space:nowrap;padding:8px 6px;min-height:40px}
-.of-head{align-items:center}.of-head h2{margin:0;flex:1;min-width:0}.of-head .badge{white-space:nowrap;display:inline-block;vertical-align:middle}.of-new{flex:none;padding:10px 14px;white-space:nowrap}
+.of-head{align-items:center;margin:0 0 8px}.of-head .chips{flex:1;min-width:0;padding:0}.of-new{flex:none;padding:10px 14px;white-space:nowrap;border-radius:999px}#outfit .of-listwrap .ofl-card{background:#fff}#outfit .of-resume{margin:0 0 10px}
 #oflSearch{flex:1 1 140px;min-width:0}#oflSort{flex:0 1 auto;max-width:46%}
 .ofl-itemrow{display:flex;align-items:center;gap:8px;background:#f0f7f1;border-radius:12px;padding:6px 6px 6px 10px;margin:4px 0}.ofl-itemrow span{flex:1;min-width:0;font-size:13px;overflow-wrap:anywhere}.ofl-itemrow button{flex:none}
 .of-resume{display:flex;align-items:center;gap:8px;background:#f0f7f1;border-radius:12px;padding:8px 10px;margin:10px 0 2px}.of-resume span{flex:1;font-size:13px}.of-resume button{flex:none}
