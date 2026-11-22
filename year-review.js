@@ -51,32 +51,35 @@
   const unit=r=>r.byOutfit?'일':'회';
   const basis=r=>r.byOutfit?'코디 착용 기록으로 센 날 수예요. 옷장 카드의 \'착용 n회\'는 전체 기간이라 다를 수 있어요.':`올해 코디 착용 기록이 없어 전체 기간 착용 횟수로 셌어요.`;
   function slides(r){
-    const out=[];
-    out.push(`<section class="yr-slide yr-cover"><p class="yr-kicker">MY WARDROBE</p><h2><span>${r.y}</span>옷장 결산</h2>
-      <div class="yr-big3"><div><b>${r.active}</b><span>벌의 옷</span></div><div><b>${r.days}</b><span>일 코디 기록</span></div><div><b>${r.outfitsLive}</b><span>개 저장 코디</span></div></div>${r.addedThisYear?`<p class="yr-hint">올해 새로 들인 옷 ${r.addedThisYear}벌</p>`:''}
-      <p class="yr-hint yr-swipe">옆으로 넘겨 보세요 →</p></section>`);
-    const top=r.ranked.slice(0,3);
-    out.push(`<section class="yr-slide"><p class="yr-kicker">${r.byOutfit?'올해':'지금까지'} 가장 많이 입은 옷</p><h3>TOP 3</h3>
-      ${top.length?`<ol class="yr-top">${top.map((c,i)=>`<li><i>${i+1}</i>${photo(c)}<div><b>${esc(nameOfItem(c))}</b><span>${esc(c.category||'')} · ${r.score(c)}${unit(r)}</span></div></li>`).join('')}</ol>`:'<p class="yr-empty">아직 입은 기록이 없어요.<br>코디 탭에서 \'오늘 입음\'을 눌러 기록해 보세요.</p>'}
+    const out=[],tile=(c,cls='')=>`<div class="yr-tile ${cls}">${photo(c)}</div>`;
+    const top4=r.ranked.slice(0,4);
+    out.push(`<section class="yr-slide yr-cover"><p class="yr-kicker">WARDROBE REVIEW</p><h2>${r.y}</h2><p class="yr-lede">올해 내 옷장은 이랬어요</p>
+      <div class="yr-big3"><div><b>${r.active}</b><span>옷</span></div><div><b>${r.days}</b><span>코디 기록한 날</span></div><div><b>${r.outfitsLive}</b><span>저장 코디</span></div></div>
+      ${top4.length?`<div class="yr-strip">${top4.map(c=>tile(c)).join('')}</div><p class="yr-cap">올해 가장 많이 입은 옷${top4.length>1?` ${top4.length}벌`:''}</p>`:''}
+      ${r.addedThisYear?`<p class="yr-cap">올해 새로 들인 옷 ${r.addedThisYear}벌</p>`:''}<p class="yr-swipe">옆으로 넘겨 보세요 →</p></section>`);
+    const top=r.ranked.slice(0,3),n2=i=>String(i+1).padStart(2,'0');
+    out.push(`<section class="yr-slide"><p class="yr-kicker">MOST WORN</p><h3>${r.byOutfit?'올해':'지금까지'} 가장 많이 입은 옷</h3>
+      ${top.length?`<div class="yr-first">${tile(top[0],'big')}<div class="yr-rank"><i>01</i><div><b>${esc(nameOfItem(top[0]))}</b><span>${esc(top[0].category||'')} · ${r.score(top[0])}${unit(r)}</span></div></div></div>
+      ${top.length>1?`<ol class="yr-rest">${top.slice(1).map((c,i)=>`<li>${tile(c)}<div><i>${n2(i+1)}</i><b>${esc(nameOfItem(c))}</b><span>${r.score(c)}${unit(r)}</span></div></li>`).join('')}</ol>`:''}`:'<p class="yr-empty">아직 입은 기록이 없어요.<br>코디 탭에서 \'오늘 입음\'을 눌러 기록해 보세요.</p>'}
       <p class="yr-note">${basis(r)}</p></section>`);
     const tops=r.outfitRank.slice(0,3),cover=o=>window.OFL&&OFL.coverHTML?OFL.coverHTML(o):'';
-    out.push(`<section class="yr-slide"><p class="yr-kicker">올해 가장 많이 입은 코디</p><h3>TOP 3</h3>
-      ${tops.length?`<ol class="yr-otop">${tops.map((x,i)=>`<li><i>${i+1}</i><div class="yr-cov">${cover(x.o)}</div><div><b>${esc(x.o.name)}</b><span>${x.n}일 입음${x.o.archived?' · 보관함':''}</span></div></li>`).join('')}</ol>`:'<p class="yr-empty">올해 입은 코디 기록이 없어요.<br>추천의 \'입었어요\'나 코디 탭 \'오늘 입음\'으로 남길 수 있어요.</p>'}</section>`);
+    out.push(`<section class="yr-slide"><p class="yr-kicker">MOST WORN LOOKS</p><h3>올해 가장 많이 입은 코디</h3>
+      ${tops.length?`<ol class="yr-otop">${tops.map((x,i)=>`<li><i>${n2(i)}</i><div class="yr-cov">${cover(x.o)}</div><div><b>${esc(x.o.name)}</b><span>${x.n}일 입음${x.o.archived?' · 보관함':''}</span></div></li>`).join('')}</ol>`:'<p class="yr-empty">올해 입은 코디 기록이 없어요.<br>추천의 \'입었어요\'나 코디 탭 \'오늘 입음\'으로 남길 수 있어요.</p>'}</section>`);
     const total=r.colorRank.reduce((a,x)=>a+x[1],0),c0=r.colorRank[0];
-    out.push(`<section class="yr-slide"><p class="yr-kicker">올해의 색</p>
+    out.push(`<section class="yr-slide"><p class="yr-kicker">COLOR OF THE YEAR</p>
       ${c0?`<div class="yr-swatch" style="background:${COLOR_HEX[c0[0]]}"></div><h3>${esc(c0[0])}</h3><p class="yr-sub">입은 기록의 ${Math.round(c0[1]/total*100)}%</p>
-      <ul class="yr-colors">${r.colorRank.slice(0,5).map(([k,n])=>`<li><span class="yr-dot" style="background:${COLOR_HEX[k]}"></span><b>${esc(k)}</b><span class="yr-bar"><span style="width:${Math.max(4,Math.round(n/c0[1]*100))}%"></span></span><em>${Math.round(n/total*100)}%</em></li>`).join('')}</ul>`:'<p class="yr-empty">입은 기록이 쌓이면 가장 많이 입은 색을 알려 드려요.</p>'}
+      <ul class="yr-colors">${r.colorRank.slice(0,5).map(([k,n])=>`<li><span class="yr-dot" style="background:${COLOR_HEX[k]}"></span><b>${esc(k)}</b><span class="yr-bar"><span style="width:${Math.max(4,Math.round(n/c0[1]*100))}%"></span></span><em>${Math.round(n/total*100)}%</em></li>`).join('')}</ul>`:'<h3>올해의 색</h3><p class="yr-empty">입은 기록이 쌓이면 가장 많이 입은 색을 알려 드려요.</p>'}
       <p class="yr-note">옷마다 입은 ${unit(r)==='일'?'날 수':'횟수'}를 그 옷의 색에 더해 나눴어요.</p></section>`);
     const max=Math.max(...r.months),nowM=r.y===thisYear()?new Date().getMonth():11,best=max?r.months.indexOf(max):-1;
-    out.push(`<section class="yr-slide"><p class="yr-kicker">월별 착용</p><h3>${best>=0?`${best+1}월에 가장 많이 입었어요`:'아직 기록이 없어요'}</h3>
+    out.push(`<section class="yr-slide"><p class="yr-kicker">MONTHLY</p><h3>${best>=0?`${best+1}월에 가장 많이 입었어요`:'아직 기록이 없어요'}</h3>
       <div class="yr-chart" role="img" aria-label="월별 코디 기록한 날 수: ${r.months.map((n,i)=>`${i+1}월 ${n}일`).join(', ')}">${r.months.map((n,i)=>`<div class="yr-col${i>nowM?' future':''}${i===best?' best':''}"><em>${i>nowM||!n?'':n}</em><span style="height:${max?Math.round(n/max*100):0}%"></span><i>${i+1}</i></div>`).join('')}</div>
       <p class="yr-note">달마다 코디를 기록한 날 수예요(하루에 여러 코디를 기록해도 하루).</p></section>`);
     const un=r.unworn,show=un.slice(0,9);
-    out.push(`<section class="yr-slide"><p class="yr-kicker">올해 한 번도 안 입은 옷</p><h3>${un.length?`${un.length}벌`:'없어요!'}</h3>
-      ${un.length?`<div class="yr-grid">${show.map(c=>`<figure>${photo(c)}<figcaption>${esc(nameOfItem(c))}</figcaption></figure>`).join('')}</div>${un.length>show.length?`<p class="yr-sub">외 ${un.length-show.length}벌 · 오래전에 등록한 옷부터</p>`:''}<p class="yr-note">보관하지 않은 옷 중 올해 입은 기록(옷장 '오늘 입음'·코디 기록)이 없는 옷이에요.</p>`:`<p class="yr-empty">보관하지 않은 모든 옷을 올해 한 번 이상 입었어요.</p>`}</section>`);
+    out.push(`<section class="yr-slide"><p class="yr-kicker">NOT WORN</p><h3>${un.length?`올해 안 입은 옷 ${un.length}벌`:'안 입은 옷이 없어요'}</h3>
+      ${un.length?`<div class="yr-grid">${show.map(c=>`<figure>${tile(c)}<figcaption>${esc(nameOfItem(c))}</figcaption></figure>`).join('')}</div>${un.length>show.length?`<p class="yr-cap">외 ${un.length-show.length}벌 · 오래전에 등록한 옷부터</p>`:''}<p class="yr-note">보관하지 않은 옷 중 올해 입은 기록(옷장 '오늘 입음'·코디 기록)이 없는 옷이에요.</p>`:`<p class="yr-empty">보관하지 않은 모든 옷을 올해 한 번 이상 입었어요.</p>`}</section>`);
     const fav=r.ranked[0];
-    out.push(`<section class="yr-slide yr-end"><p class="yr-kicker">${r.y} 올해의 옷</p>
-      ${fav?`${photo(fav,'yr-hero')}<h3>${esc(nameOfItem(fav))}</h3><p class="yr-sub">${r.score(fav)}${unit(r)} 함께했어요</p>`:'<h3>내년에는 더 많이 기록해 봐요</h3>'}
+    out.push(`<section class="yr-slide yr-end"><p class="yr-kicker">${r.y} ITEM OF THE YEAR</p>
+      ${fav?`${tile(fav,'hero')}<h3>${esc(nameOfItem(fav))}</h3><p class="yr-sub">${r.score(fav)}${unit(r)} 함께했어요</p>`:'<h3>내년에는 더 많이 기록해 봐요</h3>'}
       <p class="yr-line">${un.length?`안 입은 옷 ${un.length}벌, 내년엔 꺼내 볼까요?`:'옷장을 알뜰하게 다 입은 한 해였어요.'}</p>
       <button type="button" class="yr-done" onclick="YR.close()">닫기</button></section>`);
     return out;
@@ -87,14 +90,14 @@
     if($('yrModal'))return;
     style();
     const m=document.createElement('div');m.id='yrModal';m.className='yr-modal';m.hidden=true;m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');
-    m.innerHTML=`<div class="yr-top-bar"><div class="yr-prog" id="yrProg"></div><button type="button" class="yr-x" aria-label="결산 닫기" onclick="YR.close()">✕</button></div><div class="yr-track" id="yrTrack"></div><div class="yr-nav"><button type="button" id="yrPrev" class="secondary" onclick="YR.go(-1)" aria-label="이전 장">‹ 이전</button><span id="yrPage" class="small muted"></span><button type="button" id="yrNext" onclick="YR.go(1)" aria-label="다음 장">다음 ›</button></div>`;
+    m.innerHTML=`<div class="yr-top-bar"><div class="yr-prog" id="yrProg"></div><button type="button" class="yr-x" aria-label="결산 닫기" onclick="YR.close()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 6 L18 18 M18 6 L6 18"/></svg></button></div><div class="yr-track" id="yrTrack"></div><div class="yr-nav"><button type="button" id="yrPrev" class="secondary" onclick="YR.go(-1)" aria-label="이전 장">‹ 이전</button><span id="yrPage" class="small muted"></span><button type="button" id="yrNext" onclick="YR.go(1)" aria-label="다음 장">다음 ›</button></div>`;
     document.body.appendChild(m);
     let t=null;$('yrTrack').addEventListener('scroll',()=>{clearTimeout(t);t=setTimeout(()=>{const tr=$('yrTrack');if(!tr.clientWidth)return;const i=Math.round(tr.scrollLeft/tr.clientWidth);if(i!==idx){idx=i;syncNav()}},60)},{passive:true});
     document.addEventListener('keydown',e=>{if($('yrModal').hidden)return;if(e.key==='Escape')close();else if(e.key==='ArrowRight')go(1);else if(e.key==='ArrowLeft')go(-1)});
   }
   function syncNav(){
     $('yrProg').innerHTML=Array.from({length:count},(_,i)=>`<span class="${i<=idx?'on':''}"></span>`).join('');
-    $('yrPage').textContent=`${idx+1} / ${count}`;
+    const p2=n=>String(n).padStart(2,'0');$('yrPage').textContent=`${p2(idx+1)} / ${p2(count)}`;
     $('yrPrev').disabled=idx===0;const n=$('yrNext');n.disabled=idx>=count-1;
   }
   function go(d){const i=Math.max(0,Math.min(count-1,idx+d));if(i===idx)return;idx=i;const tr=$('yrTrack');tr.scrollTo({left:i*tr.clientWidth,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});syncNav()}
@@ -108,67 +111,84 @@
   function style(){if($('yrStyle'))return;const st=document.createElement('style');st.id='yrStyle';st.textContent=CSS;document.head.appendChild(st)}
   function label(){const b=$('yrOpen');if(b)b.textContent=`${thisYear()} 옷장 결산 보기`}
 
+  // v7(29CM풍): 흰 바탕·검정, 영문 소제목, 아주 가는 큰 숫자, 사진은 회색 칸(흰 배경은 곱하기로 녹임), 사진 위에 글자 없음
   const CSS=`
-.yr-open{width:100%;background:#166534;color:#fff;border-radius:999px;min-height:48px}
+.yr-open{width:100%;background:#111;color:#fff;border-radius:0;min-height:48px}
 .yr-lock,.yr-lock body{overflow:hidden}
-.yr-modal{position:fixed;inset:0;z-index:30;background:#f6f5f2;display:flex;flex-direction:column;padding:calc(10px + env(safe-area-inset-top)) 0 calc(12px + env(safe-area-inset-bottom))}
+.yr-modal{position:fixed;inset:0;z-index:30;background:#fff;color:#111;display:flex;flex-direction:column;padding:calc(8px + env(safe-area-inset-top)) 0 calc(14px + env(safe-area-inset-bottom))}
 .yr-modal[hidden]{display:none}
-.yr-top-bar{display:flex;align-items:center;gap:10px;padding:0 12px 8px 16px;max-width:560px;width:100%;margin:0 auto}
-.yr-prog{flex:1;display:flex;gap:4px}.yr-prog span{flex:1;height:4px;border-radius:2px;background:#e4e1da}.yr-prog span.on{background:#166534}
-.yr-x{flex:none;width:44px;height:44px;padding:0;border-radius:50%;background:#ece9e3;color:#171717;font-size:16px}
+.yr-top-bar{display:flex;align-items:center;gap:12px;padding:0 8px 6px 20px;max-width:560px;width:100%;margin:0 auto;box-sizing:border-box}
+.yr-prog{flex:1;display:flex;gap:4px}.yr-prog span{flex:1;height:2px;background:#e4e4e4}.yr-prog span.on{background:#111}
+.yr-x{flex:none;width:44px;height:44px;min-height:44px;padding:0;border-radius:0;background:transparent;color:#111;font-size:18px;font-weight:300;box-shadow:none}
 .yr-track{flex:1;min-height:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;max-width:560px;width:100%;margin:0 auto}
 .yr-track::-webkit-scrollbar{display:none}
-.yr-slide{flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;box-sizing:border-box;margin:0;padding:0 16px;overflow-y:auto;display:flex;flex-direction:column}
+.yr-slide{flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;box-sizing:border-box;margin:0;padding:18px 20px 8px;overflow-y:auto;display:flex;flex-direction:column}
 .yr-slide>*{flex:none}
-.yr-slide::before{content:"";display:block;flex:1 1 0;max-height:40px}
-.yr-slide::after{content:"";display:block;flex:1 1 0}
-.yr-kicker{margin:0 0 4px;font-size:13px;font-weight:700;color:#166534;letter-spacing:.2px}
-.yr-slide h3{margin:0 0 14px;font-size:26px;font-weight:800;letter-spacing:-.4px}
-.yr-sub{margin:-8px 0 12px;color:#6b6862;font-size:14px}
-.yr-note{margin:14px 2px 0;color:#6b6862;font-size:12px;line-height:1.5}
-.yr-empty{background:#fff;border-radius:18px;padding:22px 16px;text-align:center;color:#6b6862;font-size:14px;line-height:1.6;margin:0}
-.yr-cover{background:#166534;color:#fff;border-radius:26px;margin:0 16px;flex-basis:calc(100% - 32px);padding:28px 22px}
-.yr-cover::before,.yr-cover::after{max-height:none}
-.yr-cover .yr-kicker{color:#bbf7d0}
-.yr-cover h2{margin:0 0 26px;font-size:40px;line-height:1.1;font-weight:800;letter-spacing:-1px}.yr-cover h2 span{display:block;font-size:64px;letter-spacing:-2px}
-.yr-big3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.yr-big3 div{background:#ffffff1f;border-radius:16px;padding:12px 8px}.yr-big3 b{display:block;font-size:26px;font-weight:800}.yr-big3 span{font-size:12px;line-height:1.4;color:#dcfce7}
-.yr-hint{margin:14px 0 0;font-size:14px;color:#dcfce7}.yr-swipe{margin-top:26px;font-size:13px;color:#bbf7d0}
-.yr-top,.yr-otop{list-style:none;margin:0;padding:0;display:grid;gap:10px}
-.yr-top li,.yr-otop li{display:flex;align-items:center;gap:12px;background:#fff;border-radius:18px;padding:10px}
-.yr-top li>i,.yr-otop li>i{flex:none;width:28px;font-style:normal;font-size:22px;font-weight:800;color:#166534;text-align:center}
-.yr-top img{flex:none;width:92px;height:92px;object-fit:contain;background:#fff;border:1px solid #ece9e3;border-radius:14px}
-.yr-top li:first-child img{width:116px;height:116px}
-.yr-top li>div,.yr-otop li>div:last-child{min-width:0;flex:1}
-.yr-top b,.yr-otop b{display:block;font-size:16px;font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.yr-top span,.yr-otop span{font-size:13px;color:#6b6862}
+.yr-kicker{margin:0 0 6px;font-size:11px;font-weight:600;letter-spacing:2.2px;color:#767676}
+.yr-slide h3{margin:0 0 16px;font-size:22px;font-weight:300;letter-spacing:-.5px;line-height:1.3}
+.yr-sub{margin:-10px 0 14px;color:#767676;font-size:13px}
+.yr-cap{margin:8px 0 0;color:#767676;font-size:11px}
+.yr-note{margin:16px 0 0;color:#767676;font-size:11px;line-height:1.6}
+.yr-empty{border-top:1px solid #111;border-bottom:1px solid #ebebeb;padding:22px 0;color:#767676;font-size:13px;line-height:1.7;margin:0}
+.yr-tile{position:relative;overflow:hidden;background:#f4f4f2;aspect-ratio:4/5;min-width:0}
+.yr-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;display:block;border-radius:0;max-height:none;background:transparent}
+.yr-cover{padding-top:30px}
+.yr-cover h2{margin:4px 0 0;font-size:104px;line-height:1;font-weight:200;letter-spacing:-6px}
+.yr-lede{margin:12px 0 0;font-size:20px;font-weight:300;letter-spacing:-.4px}
+.yr-big3{margin-top:28px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid #111;border-bottom:1px solid #ebebeb}
+.yr-big3 div{padding:14px 0 14px 12px;display:flex;flex-direction:column;gap:4px;box-shadow:inset 1px 0 0 #ebebeb;min-width:0}
+.yr-big3 div:first-child{padding-left:0;box-shadow:none}
+.yr-big3 b{font-size:30px;font-weight:300;letter-spacing:-1px}.yr-big3 span{font-size:11px;color:#767676}
+.yr-strip{margin-top:24px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px}
+.yr-swipe{margin:auto 0 0;padding-top:20px;font-size:11px;letter-spacing:.4px;color:#767676}
+.yr-first .yr-tile.big{aspect-ratio:auto;height:min(46vh,300px)}
+.yr-rank{display:flex;align-items:baseline;gap:12px;margin-top:12px}
+.yr-rank i,.yr-rest i,.yr-otop li>i{font-style:normal;font-weight:200;letter-spacing:-1px;color:#111}
+.yr-rank i{font-size:28px}
+.yr-rank div{min-width:0;display:flex;flex-direction:column;gap:2px}
+.yr-rank b{font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.yr-rank span,.yr-rest span,.yr-otop span{font-size:12px;color:#767676}
+.yr-rest{list-style:none;margin:18px 0 0;padding:16px 0 0;border-top:1px solid #ebebeb;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.yr-rest li{display:flex;gap:10px;min-width:0}
+.yr-rest .yr-tile{flex:none;width:64px}
+.yr-rest li>div:last-child{min-width:0;display:flex;flex-direction:column;gap:1px}
+.yr-rest i{font-size:18px}
+.yr-rest b{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.yr-otop{list-style:none;margin:0;padding:0;border-top:1px solid #111}
+.yr-otop li{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid #ebebeb}
+.yr-otop li>i{flex:none;width:30px;font-size:22px}
+.yr-otop li>div:last-child{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.yr-otop b{font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .yr-cov{flex:none;width:96px}.yr-cov .ofl-cover{display:grid}
-.yr-swatch{width:120px;height:120px;border-radius:50%;margin:6px 0 14px;box-shadow:inset 0 0 0 1px #0000001a,0 8px 22px #0000001f}
-.yr-colors{list-style:none;margin:0;padding:12px;display:grid;gap:10px;background:#fff;border-radius:18px}
-.yr-colors li{display:grid;grid-template-columns:18px 76px 1fr 44px;align-items:center;gap:8px;font-size:13px}
-.yr-dot{width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 1px #0000001f}
-.yr-colors b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.yr-bar{height:10px;background:#f1efe9;border-radius:5px;overflow:hidden}.yr-bar span{display:block;height:100%;background:#166534;border-radius:5px}
-.yr-colors em{font-style:normal;text-align:right;color:#6b6862}
-.yr-chart{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:4px;align-items:end;height:220px;background:#fff;border-radius:18px;padding:14px 10px 8px}
+.yr-swatch{width:96px;height:96px;border-radius:50%;margin:10px 0 18px;box-shadow:inset 0 0 0 1px #0000001a}
+.yr-colors{list-style:none;margin:0;padding:0;border-top:1px solid #111;display:grid}
+.yr-colors li{display:grid;grid-template-columns:16px 84px 1fr 40px;align-items:center;gap:10px;font-size:13px;padding:11px 0;border-bottom:1px solid #ebebeb}
+.yr-dot{width:14px;height:14px;border-radius:50%;box-shadow:inset 0 0 0 1px #00000026}
+.yr-colors b{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.yr-bar{height:2px;background:#ebebeb}.yr-bar span{display:block;height:100%;background:#111}
+.yr-colors em{font-style:normal;text-align:right;color:#767676;font-size:12px}
+.yr-chart{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:5px;align-items:end;height:230px;border-top:1px solid #111;border-bottom:1px solid #ebebeb;padding:16px 0 8px}
 .yr-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
-.yr-col span{width:100%;max-width:22px;background:#c8d9cd;border-radius:6px 6px 2px 2px;min-height:2px}
-.yr-col.best span{background:#166534}
-.yr-col em{font-style:normal;font-size:10.5px;color:#6b6862;margin-bottom:3px}
-.yr-col i{font-style:normal;font-size:11px;color:#6b6862;margin-top:5px}
-.yr-col.future span{background:#ece9e3}.yr-col.future i{color:#b8b4ac}
-.yr-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.yr-grid figure{margin:0;background:#fff;border-radius:14px;overflow:hidden;min-width:0}
-.yr-grid img{display:block;width:100%;aspect-ratio:1;object-fit:contain;background:#fff}
-.yr-grid figcaption{font-size:11px;padding:4px 7px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#3f3d39}
+.yr-col span{width:100%;max-width:18px;background:#d6d6d6;min-height:1px}
+.yr-col.best span{background:#111}
+.yr-col em{font-style:normal;font-size:10px;color:#767676;margin-bottom:4px}
+.yr-col.best em{color:#111;font-weight:600}
+.yr-col i{font-style:normal;font-size:10px;color:#767676;margin-top:6px}
+.yr-col.future span{background:#f0f0f0}.yr-col.future i{color:#bdbdbd}
+.yr-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:6px;row-gap:12px}
+.yr-grid figure{margin:0;min-width:0}
+.yr-grid figcaption{font-size:11px;padding-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#111}
 .yr-end{align-items:center;text-align:center}
-.yr-hero{width:min(64vw,240px);aspect-ratio:1;object-fit:contain;background:#fff;border-radius:24px;margin:8px 0 16px;box-shadow:0 10px 28px #0000001a}
-.yr-end h3{margin-bottom:12px}
-.yr-line{margin:4px 0 18px;font-size:15px;font-weight:600}
-.yr-done{min-width:160px;border-radius:999px;min-height:48px}
-.yr-nav{display:flex;align-items:center;gap:10px;padding:10px 16px 0;max-width:560px;width:100%;margin:0 auto;box-sizing:border-box}
-.yr-nav button{flex:1;border-radius:999px;min-height:48px}.yr-nav button:disabled{opacity:.35}
-.yr-nav span{flex:none;min-width:44px;text-align:center}
+.yr-end .yr-tile.hero{width:min(64vw,240px);margin:10px 0 18px}
+.yr-end h3{margin-bottom:10px;font-weight:400}
+.yr-line{margin:4px 0 22px;font-size:14px;font-weight:500}
+.yr-done{min-width:160px;border-radius:0;min-height:48px;background:#111;color:#fff}
+.yr-nav{display:flex;align-items:center;gap:8px;padding:10px 20px 0;max-width:560px;width:100%;margin:0 auto;box-sizing:border-box}
+.yr-nav span{flex:1;order:-1;text-align:left;font-size:11px;letter-spacing:1px}
+.yr-nav button{flex:none;border-radius:0;min-height:48px;padding:0 22px}
+.yr-nav #yrPrev{background:#fff;color:#111;box-shadow:inset 0 0 0 1px #111;padding:0 16px}
+.yr-nav #yrNext{background:#111;color:#fff}
+.yr-nav button:disabled{opacity:.3}
 `;
   window.YR={open,close,go,compute,state:()=>({open:!!$('yrModal')&&!$('yrModal').hidden,idx,count})};
   style();label();

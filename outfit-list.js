@@ -53,7 +53,7 @@
   const metaOf=o=>o.worn.length?`${o.worn.length}회 · ${md(U().lastWorn(o))}`:'안 입음';
   function cardHTML(o){
     const u=U(),ed=u.editingId===o.id&&window.OF&&OF.hasDraft();
-    return `<button type="button" class="ofl-card" data-of="${esc(String(o.id))}" onclick="OFL.open(${arg(o.id)})" aria-label="${esc(o.name)}, ${esc(metaOf(o))}${o.fav?', 즐겨찾기':''}">${coverHTML(o)}${o.fav?'<b class="ofl-star" aria-hidden="true">★</b>':''}${ed?'<b class="ofl-edit" aria-hidden="true">고치는 중</b>':''}<span class="ofl-name">${esc(o.name)}</span><span class="ofl-meta">${esc(metaOf(o))}</span></button>`;
+    return `<button type="button" class="ofl-card" data-of="${esc(String(o.id))}" onclick="OFL.open(${arg(o.id)})" aria-label="${esc(o.name)}, ${esc(metaOf(o))}${o.fav?', 즐겨찾기':''}">${coverHTML(o)}<span class="ofl-name">${o.fav?'<b class="ofl-star" aria-hidden="true">★</b>':''}${esc(o.name)}</span><span class="ofl-meta">${ed?'<b class="ofl-edit" aria-hidden="true">고치는 중</b>':''}${esc(metaOf(o))}</span></button>`; // v7: 별·고치는 중 표시는 사진 위가 아니라 이름·설명 줄에
   }
   function gridHTML(list,key){
     const n=lim(key),shown=list.slice(0,n),rest=list.length-shown.length;

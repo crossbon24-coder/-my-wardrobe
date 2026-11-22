@@ -180,7 +180,7 @@
     const sortOpts=[['recent','최근 등록순'],['stale','오래 안 입은 순'],['most','많이 입은 순'],['color','색상순']].map(([k,l])=>`<option value="${k}"${pickSort===k?' selected':''}>${l}</option>`).join('');
     $('pickBody').innerHTML=`<div class="pick-head">
         <div class="row" style="align-items:center"><h2 style="margin:0;flex:1">${esc(meta.label)} 고르기 <span class="badge" id="pickCount"></span></h2>${draft[pickSlot]?`<button type="button" class="ghost" style="flex:none" onclick="OF.clear(${arg(pickSlot)});OF.closePick()">칸 비우기</button>`:''}<button type="button" class="pick-close" aria-label="닫기" onclick="OF.closePick()">×</button></div>
-        <div class="row" style="align-items:center"><input id="pickSearch" type="search" placeholder="검색: 이름·종류·색·브랜드" aria-label="옷 검색" autocomplete="off" value="${esc(pickQuery)}" oninput="OF.pickQuery(this.value)"><select aria-label="정렬" style="flex:none;width:auto" onchange="OF.pickSort(this.value)">${sortOpts}</select></div>
+        <div class="row" style="align-items:center"><input id="pickSearch" type="search" placeholder="검색" title="이름·종류·색·브랜드로 찾기" aria-label="옷 검색" autocomplete="off" value="${esc(pickQuery)}" oninput="OF.pickQuery(this.value)"><select aria-label="정렬" style="flex:none;width:auto" onchange="OF.pickSort(this.value)">${sortOpts}</select></div>
         <div class="chips pick-chips"><button type="button" class="chip${pickAll?' on':''}" onclick="OF.pickAll()">전체 분류</button></div>
         ${typeChips}
       </div><div id="pickGrid"></div>`;
@@ -414,7 +414,7 @@
   function installClosetTools(){
     const filters=$('filters');if(!filters||$('closetTools'))return;
     const div=document.createElement('div');div.id='closetTools';div.className='row';div.style.alignItems='center';
-    div.innerHTML=`<input id="closetSearch" type="search" placeholder="검색" title="이름·종류·색·브랜드로 찾기" aria-label="옷장 검색" autocomplete="off"><span id="closetSearchStat" class="small muted" style="flex:none" hidden></span><select id="closetSort" aria-label="옷장 정렬" style="flex:none;width:auto;margin:0"><option value="recent">최근 등록</option><option value="stale">오래 안 입은</option><option value="most">많이 입은</option><option value="color">색상</option></select><button type="button" id="densityBtn" class="secondary" style="flex:none">4열</button>`;
+    div.innerHTML=`<input id="closetSearch" type="search" placeholder="검색" title="이름·종류·색·브랜드로 찾기" aria-label="옷장 검색" autocomplete="off"><span id="closetSearchStat" class="small muted" style="flex:none" hidden></span><select id="closetSort" aria-label="옷장 정렬" style="flex:0 1 auto;width:auto;min-width:0;margin:0"><option value="recent">최근 등록</option><option value="stale">오래 안 입은</option><option value="most">많이 입은</option><option value="color">색상</option></select><button type="button" id="densityBtn" class="secondary" style="flex:none">4열</button>`;
     filters.parentNode.insertBefore(div,filters);
     const items=$('items');
     if(items&&!$('closetNoMatch')){const p=document.createElement('p');p.id='closetNoMatch';p.className='empty';p.hidden=true;items.parentNode.insertBefore(p,items.nextSibling)}

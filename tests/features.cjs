@@ -2089,6 +2089,38 @@ async function check(name, fn, opts) {
     assert.deepEqual([r.s0.open, r.s0.idx, r.s0.count, r.slides, r.s1.idx], [true, 0, 7, 7, 1]); assert.deepEqual(r.text, [true, true]); assert.equal(r.closed, true);
   });
 
+  await check('v7.0 디자인: at 390 and 320 wide, garment photos never sit on top of their names, counts or badges (closet, recommendation, outfit list, year review) and no page scrolls sideways', async page => {
+    const run = () => page.evaluate(async () => {
+      const hit = (a, b) => { const r = a.getBoundingClientRect(), s = b.getBoundingClientRect(); return Math.min(r.right, s.right) - Math.max(r.left, s.left) > 1 && Math.min(r.bottom, s.bottom) - Math.max(r.top, s.top) > 1; };
+      const bad = [], wide = [];
+      const pairs = (sel, imgSel, textSel, label) => { for (const box of document.querySelectorAll(sel)) { const im = box.querySelector(imgSel); if (!im || !im.getClientRects().length) continue; for (const t of box.querySelectorAll(textSel)) if (t.getClientRects().length && hit(im, t)) bad.push(`${label}: ${t.textContent.trim().slice(0, 12)}`); } };
+      const sideways = name => { if (document.documentElement.scrollWidth > window.innerWidth + 1) wide.push(name); };
+      goto('옷장'); await sleep(30); pairs('#items .item', 'img', '.info, .today', 'closet'); sideways('closet');
+      goto('코디 추천'); recommend(); await sleep(30); pairs('#result .recitem', 'img', 'span', 'rec'); sideways('rec');
+      goto('코디'); await sleep(30); pairs('#oflBody .ofl-card', '.ofl-cover', '.ofl-name, .ofl-meta', 'outfits'); sideways('outfits');
+      goto('더보기'); await sleep(20); sideways('more');
+      YR.open(); await sleep(30);
+      pairs('#yrTrack .yr-first', '.yr-tile', '.yr-rank', 'yr-top'); pairs('#yrTrack .yr-rest li', '.yr-tile', 'b, span, i', 'yr-rest'); pairs('#yrTrack .yr-grid figure', '.yr-tile', 'figcaption', 'yr-unworn');
+      YR.close(); return { bad, wide };
+    });
+    await page.evaluate(async () => {
+      const y = new Date().getFullYear(), day = `${y}-01-01`;
+      await seed([
+        { id: 't1', category: '상의', memo: '네이비 울 니트 아주 긴 이름이 붙은 옷', color: '네이비', wearCount: 3, lastWorn: Date.now() }, { id: 't2', category: '상의', memo: '화이트 셔츠', wearCount: 1 },
+        { id: 'o1', category: '아우터', memo: '카키 블루종', season: '봄/가을', wearCount: 2 }, { id: 'b1', category: '하의', memo: '인디고 데님', wearCount: 4 },
+        { id: 's1', category: '신발', memo: '화이트 스니커즈', wearCount: 5 }, { id: 'g1', category: '가방', memo: '블랙 토트' }, { id: 'z1', category: '하의', memo: '안 입은 치노' },
+      ]);
+      await transaction(['outfits'], 'readwrite', tx => { const st = tx.objectStore('outfits');
+        st.put({ id: 'A', name: '주말 편하게', slots: { outer: 'o1', top: 't1', bottom: 'b1', shoes: 's1' }, createdAt: 1, worn: [day], fav: true });
+        st.put({ id: 'B', name: '출근', slots: { top: 't2', bottom: 'b1', shoes: 's1', bag: 'g1' }, createdAt: 2, worn: [day] }); });
+      await refresh();
+    });
+    const wideScreen = await run();
+    await page.setViewportSize({ width: 320, height: 568 });
+    const narrow = await run();
+    assert.deepEqual(wideScreen, { bad: [], wide: [] }); assert.deepEqual(narrow, { bad: [], wide: [] });
+  });
+
   await browser.close(); server.close();
   console.log(`\n${passed} passed, ${failed} failed. Chromium only — iPhone Safari itself is not verified by this suite.`);
   process.exit(failed ? 1 : 0);
